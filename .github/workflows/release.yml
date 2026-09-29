@@ -1,0 +1,82 @@
+# Push a tag like v2.0.0 to publish a release.
+# - GitHub build: signed APK attached to a GitHub Release in this repo, where the in-app updater
+#   (and Obtainium) finds it. GitHub adds the matching source archives automatically (GPL).
+# - Amazon build: signed APK kept as a workflow artifact, to upload to the Amazon Appstore by hand.
+#
+# Secrets: KEYSTORE_BASE64, STORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD, GOOGLE_SERVICES_JSON.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the annotated tag's message becomes the release notes
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Signing and Firebase config
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          for s in KEYSTORE_BASE64 STORE_PASSWORD KEY_ALIAS KEY_PASSWORD GOOGLE_SERVICES_JSON; do
+            [ -n "${!s}" ] || { echo "::error::The $s secret isn't set"; exit 1; }
+          done
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+          {
+            printf 'storeFile=%s\n' "$RUNNER_TEMP/release.keystore"
+            printf 'storePassword=%s\n' "$STORE_PASSWORD"
+            printf 'keyAlias=%s\n' "$KEY_ALIAS"
+            printf 'keyPassword=%s\n' "$KEY_PASSWORD"
+          } > keystore.properties
+          printf '%s' "$GOOGLE_SERVICES_JSON" > app/google-services.json
+
+      - name: Build release APKs
+        run: ./gradlew assembleGithubRelease assembleAmazonRelease
+
+      - name: Name APKs
+        id: names
+        run: |
+          meta=app/build/outputs/apk/github/release/output-metadata.json
+          name=$(jq -r '.elements[0].versionName' "$meta")
+          code=$(jq -r '.elements[0].versionCode' "$meta")
+          [ "v$name" = "${GITHUB_REF_NAME}" ] || { echo "Tag ${GITHUB_REF_NAME} doesn't match versionName $name"; exit 1; }
+          mkdir -p dist
+          cp app/build/outputs/apk/github/release/app-github-release.apk "dist/FireTube-$name-$code.apk"
+          cp app/build/outputs/apk/amazon/release/app-amazon-release.apk "dist/FireTube-amazon-$name-$code.apk"
+          echo "github=dist/FireTube-$name-$code.apk" >> "$GITHUB_OUTPUT"
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" "${{ steps.names.outputs.github }}" \
+            --title "FireTube ${GITHUB_REF_NAME#v}" \
+            --notes-file <(git tag -l --format='%(contents)' "${GITHUB_REF_NAME}")
+
+      - name: Keep the Amazon APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: amazon-apk
+          path: dist/FireTube-amazon-*.apk
+          retention-days: 30
+
+      - name: Clean up signing material
+        if: always()
+        run: rm -f keystore.properties app/google-services.json "$RUNNER_TEMP/release.keystore"

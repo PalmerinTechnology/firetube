@@ -1,0 +1,18 @@
+# Gradle / build
+.gradle/
+build/
+.kotlin/
+local.properties
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+
+# Signing — never commit keys (a local config/keystore/debug.keystore is optional)
+keystore.properties
+*.jks
+*.keystore
+
+# Firebase config: official builds get it from the GOOGLE_SERVICES_JSON CI secret
+app/google-services.json

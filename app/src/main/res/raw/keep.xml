@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Resources the shrinker can't see being used. AuthManager looks up the web client ID by name
+  (getIdentifier), because it only exists in builds that have google-services.json.
+-->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@string/default_web_client_id" />

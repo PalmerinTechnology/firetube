@@ -1,0 +1,54 @@
+package com.palmerintech.firetube.player
+
+import android.content.Context
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.database.StandaloneDatabaseProvider
+import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.cache.CacheDataSource
+import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
+import androidx.media3.datasource.cache.NoOpCacheEvictor
+import androidx.media3.datasource.cache.SimpleCache
+import androidx.media3.datasource.okhttp.OkHttpDataSource
+import okhttp3.OkHttpClient
+import java.io.File
+
+/**
+ * Shared Media3 plumbing: the streaming cache (LRU, recently played songs replay without the
+ * network), the downloads cache (never evicted) and the data-source chain that reads through both.
+ */
+@UnstableApi
+class MediaStack(
+    context: Context,
+    httpClient: OkHttpClient,
+    resolver: StreamResolver,
+    streamCacheMb: Int,
+    /** Current audio quality tag; part of the song-cache key so different bitrates never mix. */
+    private val qualityTag: () -> String,
+) {
+    private val databaseProvider = StandaloneDatabaseProvider(context)
+
+    val streamCache = SimpleCache(
+        File(context.cacheDir, "media"),
+        LeastRecentlyUsedCacheEvictor(streamCacheMb.coerceAtLeast(64) * 1024L * 1024L),
+        databaseProvider,
+    )
+
+    val downloadCache = SimpleCache(File(context.filesDir, "downloads"), NoOpCacheEvictor(), databaseProvider)
+
+    val database get() = databaseProvider
+
+    /** Network: firetube:// ids → fresh googlevideo URLs over OkHttp. */
+    val networkFactory: DataSource.Factory = YouTubeDataSource.Factory(OkHttpDataSource.Factory(httpClient), resolver)
+
+    /** Playback: downloads (read-only, plain keys) → stream cache (keyed by id + quality) → network. */
+    val playbackFactory: DataSource.Factory = CacheDataSource.Factory()
+        .setCache(downloadCache)
+        .setCacheWriteDataSinkFactory(null)
+        .setUpstreamDataSourceFactory(
+            CacheDataSource.Factory()
+                .setCache(streamCache)
+                .setUpstreamDataSourceFactory(networkFactory)
+                .setCacheKeyFactory { spec -> "${spec.key ?: spec.uri}@${qualityTag()}" }
+                .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR),
+        )
+}
