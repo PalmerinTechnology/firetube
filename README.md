@@ -42,8 +42,8 @@ Requirements: JDK 17+ (Android Studio's bundled JBR works) and the Android SDK.
 
 ```sh
 ./gradlew assembleGithubDebug        # APK in app/build/outputs/apk/github/debug/
-./gradlew :extractor:test            # offline unit tests
-./gradlew :extractor:test -Plive     # live tests against YouTube: search, resolve, stream
+./gradlew :core:extractor:test            # offline unit tests
+./gradlew :core:extractor:test -Plive     # live tests against YouTube: search, resolve, stream
 ./gradlew testGithubDebugUnitTest    # app unit tests
 ```
 
@@ -59,7 +59,7 @@ Firebase project's config file.
 
 | Module | |
 |---|---|
-| `:extractor` | Pure JVM. Everything about talking to YouTube sits behind a small `StreamSource` interface, implemented with [NewPipeExtractor](https://github.com/TeamNewPipe/NewPipeExtractor). |
+| `:core:extractor` | Pure JVM. Everything about talking to YouTube sits behind a small `StreamSource` interface, implemented with [NewPipeExtractor](https://github.com/TeamNewPipe/NewPipeExtractor). |
 | `:app` | The Android app: Jetpack Compose UI, Media3 playback, and a Room database. |
 
 - Songs are queued as `firetube://track/<videoId>`. Each one is turned into a stream URL just

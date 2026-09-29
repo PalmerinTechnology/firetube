@@ -17,4 +17,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "FireTube"
-include(":app", ":extractor")
+include(":app", ":core:extractor")

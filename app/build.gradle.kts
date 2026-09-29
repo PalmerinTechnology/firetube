@@ -113,7 +113,7 @@ ksp {
 }
 
 dependencies {
-    implementation(project(":extractor"))
+    implementation(project(":core:extractor"))
     coreLibraryDesugaring(libs.desugar)
 
     implementation(libs.androidx.core.ktx)
