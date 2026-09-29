@@ -26,14 +26,14 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Build both flavors (debug)
-        run: ./gradlew assembleGithubDebug assembleAmazonDebug --stacktrace
+      - name: Build (debug)
+        run: ./gradlew assembleDebug --stacktrace
 
       - name: Unit tests
-        run: ./gradlew :core:extractor:test testGithubDebugUnitTest
+        run: ./gradlew :core:extractor:test testDebugUnitTest
 
       - name: Lint
-        run: ./gradlew lintGithubDebug
+        run: ./gradlew lintDebug
 
       - name: Upload reports
         if: failure()

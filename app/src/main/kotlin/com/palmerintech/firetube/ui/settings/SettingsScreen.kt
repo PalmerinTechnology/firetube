@@ -193,7 +193,7 @@ fun SettingsScreen(container: AppContainer, onBack: () -> Unit, onShowMessage: (
             item {
                 ClickRow(
                     "FireTube ${BuildConfig.VERSION_NAME}",
-                    if (container.isSupporter) "Thanks for supporting FireTube!" else "Free and ad-free",
+                    "Free and ad-free",
                 ) {}
             }
             Support.donateUrl?.let { url ->

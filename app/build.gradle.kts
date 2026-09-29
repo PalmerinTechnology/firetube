@@ -68,19 +68,6 @@ android {
         }
     }
 
-    // github: sideloaded builds that update themselves from GitHub Releases.
-    // amazon: the Amazon Appstore build; the store handles updates.
-    flavorDimensions += "store"
-    productFlavors {
-        create("github") {
-            dimension = "store"
-            buildConfigField("boolean", "SELF_UPDATE", "true")
-        }
-        create("amazon") {
-            dimension = "store"
-            buildConfigField("boolean", "SELF_UPDATE", "false")
-        }
-    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

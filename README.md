@@ -27,7 +27,6 @@ crash details, no personal data), which you can turn off in Settings.
 
 Download the latest APK from **[Releases](https://github.com/spalmerin21/firetube/releases)**.
 FireTube updates itself, and it also works with [Obtainium](https://github.com/ImranR98/Obtainium).
-On Fire tablets and Fire TV it's also in the Amazon Appstore.
 
 FireTube isn't on Google Play: Play doesn't allow apps that play YouTube in the background.
 
@@ -41,19 +40,15 @@ FireTube is free and always will be. If it's become part of your day, you can
 Requirements: JDK 17+ (Android Studio's bundled JBR works) and the Android SDK.
 
 ```sh
-./gradlew assembleGithubDebug        # APK in app/build/outputs/apk/github/debug/
+./gradlew assembleDebug              # APK in app/build/outputs/apk/debug/
 ./gradlew :core:extractor:test            # offline unit tests
 ./gradlew :core:extractor:test -Plive     # live tests against YouTube: search, resolve, stream
-./gradlew testGithubDebugUnitTest    # app unit tests
+./gradlew testDebugUnitTest          # app unit tests
 ```
 
 You don't need anything else to build. Without `app/google-services.json`, FireTube builds and runs with its
 Firebase features turned off (crash reports, Google sign-in and sync). To enable them, add your own
 Firebase project's config file.
-
-### Flavors
-- **github:** sideloaded builds. They update themselves from this repo's Releases.
-- **amazon:** the Amazon Appstore build. The store handles updates.
 
 ## How it works
 

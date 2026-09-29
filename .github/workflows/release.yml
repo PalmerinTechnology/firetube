@@ -1,7 +1,6 @@
 # Push a tag like v2.0.0 to publish a release.
-# - GitHub build: signed APK attached to a GitHub Release in this repo, where the in-app updater
-#   (and Obtainium) finds it. GitHub adds the matching source archives automatically (GPL).
-# - Amazon build: signed APK kept as a workflow artifact, to upload to the Amazon Appstore by hand.
+# The signed APK is attached to a GitHub Release in this repo, where the in-app updater (and
+# Obtainium) finds it. GitHub adds the matching source archives automatically (GPL).
 #
 # Secrets: KEYSTORE_BASE64, STORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD, GOOGLE_SERVICES_JSON.
 name: Release
@@ -48,18 +47,17 @@ jobs:
           printf '%s' "$GOOGLE_SERVICES_JSON" > app/google-services.json
 
       - name: Build release APKs
-        run: ./gradlew assembleGithubRelease assembleAmazonRelease
+        run: ./gradlew assembleRelease
 
       - name: Name APKs
         id: names
         run: |
-          meta=app/build/outputs/apk/github/release/output-metadata.json
+          meta=app/build/outputs/apk/release/output-metadata.json
           name=$(jq -r '.elements[0].versionName' "$meta")
           code=$(jq -r '.elements[0].versionCode' "$meta")
           [ "v$name" = "${GITHUB_REF_NAME}" ] || { echo "Tag ${GITHUB_REF_NAME} doesn't match versionName $name"; exit 1; }
           mkdir -p dist
-          cp app/build/outputs/apk/github/release/app-github-release.apk "dist/FireTube-$name-$code.apk"
-          cp app/build/outputs/apk/amazon/release/app-amazon-release.apk "dist/FireTube-amazon-$name-$code.apk"
+          cp app/build/outputs/apk/release/app-release.apk "dist/FireTube-$name-$code.apk"
           echo "github=dist/FireTube-$name-$code.apk" >> "$GITHUB_OUTPUT"
 
       - name: Publish the release
@@ -69,13 +67,6 @@ jobs:
           gh release create "${GITHUB_REF_NAME}" "${{ steps.names.outputs.github }}" \
             --title "FireTube ${GITHUB_REF_NAME#v}" \
             --notes-file <(git tag -l --format='%(contents)' "${GITHUB_REF_NAME}")
-
-      - name: Keep the Amazon APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: amazon-apk
-          path: dist/FireTube-amazon-*.apk
-          retention-days: 30
 
       - name: Clean up signing material
         if: always()
