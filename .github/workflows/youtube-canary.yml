@@ -1,0 +1,43 @@
+# Nightly check that FireTube can still search, resolve and stream from YouTube.
+# YouTube changes things without notice; this catches it before users do and files an issue.
+name: YouTube canary
+
+on:
+  schedule:
+    - cron: "17 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Live extractor tests
+        run: ./gradlew :extractor:test -Plive --tests '*LiveTest*'
+
+      - name: Open or update an issue on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="YouTube canary failing"
+          url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          existing=$(gh issue list --state open --search "$title in:title" --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "Still failing: $url"
+          else
+            gh issue create --title "$title" --body "The nightly live extractor tests failed: $url
+
+          Usually YouTube changed something. Check for a newer NewPipeExtractor release and bump \`newpipeExtractor\` in gradle/libs.versions.toml."
+          fi

@@ -1,0 +1,94 @@
+package com.palmerintech.firetube
+
+import android.app.Application
+import android.content.pm.PackageManager
+import androidx.media3.cast.Cast
+import com.google.android.gms.common.ConnectionResult
+import com.google.firebase.FirebaseApp
+import com.google.android.gms.common.GoogleApiAvailability
+import androidx.media3.common.util.UnstableApi
+import com.palmerintech.firetube.data.AudioQuality
+import com.palmerintech.firetube.data.LibraryRepository
+import com.palmerintech.firetube.data.SettingsRepository
+import com.palmerintech.firetube.data.db.FireTubeDatabase
+import com.palmerintech.firetube.data.sync.AuthManager
+import com.palmerintech.firetube.data.sync.Backup
+import com.palmerintech.firetube.data.sync.CloudSync
+import com.palmerintech.firetube.extractor.NewPipeStreamSource
+import com.palmerintech.firetube.extractor.StreamSource
+import com.palmerintech.firetube.player.Downloads
+import com.palmerintech.firetube.player.MediaStack
+import com.palmerintech.firetube.player.PlayerConnection
+import com.palmerintech.firetube.player.QueueStore
+import com.palmerintech.firetube.player.SleepTimer
+import com.palmerintech.firetube.player.SponsorBlock
+import com.palmerintech.firetube.player.StreamResolver
+import com.palmerintech.firetube.player.cast.CastProxyServer
+import com.palmerintech.firetube.update.createUpdater
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.SupervisorJob
+import okhttp3.OkHttpClient
+import java.util.concurrent.TimeUnit
+
+/** Hand-rolled dependency graph; one instance per process, owned by [FireTubeApp]. */
+@UnstableApi
+class AppContainer(val app: Application) {
+    val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    val httpClient: OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .build()
+
+    val source: StreamSource by lazy { NewPipeStreamSource(httpClient) }
+
+    private val database = FireTubeDatabase.create(app)
+    val settings = SettingsRepository(app)
+    val library = LibraryRepository(database.library())
+
+    // Same synchronous source as the song-cache key, so URL bitrate and cache key always agree.
+    val resolver by lazy { StreamResolver(source) { settings.audioQualityNow() } }
+    val mediaStack by lazy {
+        MediaStack(app, httpClient, resolver, settings.cacheSizeMbNow()) { settings.audioQualityNow().name }
+    }
+    val castServer by lazy { CastProxyServer(app, resolver, httpClient) }
+
+    /** Chromecast needs Google Play services (so not on Fire tablets). */
+    val castAvailable: Boolean by lazy {
+        GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(app) == ConnectionResult.SUCCESS &&
+            runCatching { Cast.getSingletonInstance(app).initialize() }.isSuccess
+    }
+    val downloads by lazy { Downloads(app, mediaStack) }
+    val sponsorBlock by lazy { SponsorBlock(httpClient) }
+    val sleepTimer = SleepTimer(appScope)
+    val queueStore = QueueStore(app)
+    val player = PlayerConnection(app, MainScope())
+
+    val auth = AuthManager(app)
+    val sync = CloudSync(app, auth, library, appScope)
+    val backup = Backup(library)
+    val updater = createUpdater(app, httpClient)
+
+    /** The song cache keys on quality, so only already-resolved URLs need dropping. */
+    suspend fun setAudioQuality(quality: AudioQuality) {
+        settings.setAudioQuality(quality)
+        resolver.clear()
+    }
+
+    /** Whether this build includes Firebase (official builds do; forks without google-services.json don't). */
+    val firebaseConfigured: Boolean = FirebaseApp.getApps(app).isNotEmpty()
+
+    /** Owners of the Amazon "FireTube License Key" app are supporters. */
+    val isSupporter: Boolean by lazy {
+        listOf("pro.palmerin.firetube", "pro.palmerintech.firetube").any { pkg ->
+            try {
+                app.packageManager.getPackageInfo(pkg, 0)
+                true
+            } catch (_: PackageManager.NameNotFoundException) {
+                false
+            }
+        }
+    }
+}
