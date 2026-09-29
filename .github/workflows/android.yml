@@ -30,7 +30,7 @@ jobs:
         run: ./gradlew assembleGithubDebug assembleAmazonDebug --stacktrace
 
       - name: Unit tests
-        run: ./gradlew :extractor:test testGithubDebugUnitTest
+        run: ./gradlew :core:extractor:test testGithubDebugUnitTest
 
       - name: Lint
         run: ./gradlew lintGithubDebug

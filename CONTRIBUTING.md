@@ -17,7 +17,7 @@ Check for an open "YouTube canary failing" issue before opening a new one.
 1. Fork the repo and create a branch from `dev`.
 2. Build and test:
    ```sh
-   ./gradlew assembleGithubDebug testGithubDebugUnitTest lintGithubDebug :extractor:test
+   ./gradlew assembleGithubDebug testGithubDebugUnitTest lintGithubDebug :core:extractor:test
    ```
    You don't need a Firebase config; see the README.
 3. Keep pull requests focused, one change per PR, and explain *why* in the description.
@@ -27,8 +27,8 @@ Check for an open "YouTube canary failing" issue before opening a new one.
 - Kotlin, Jetpack Compose, coroutines.
 - Match the surrounding code's naming and comment style.
 - Comment the **why**, not the what.
-- Anything that talks to YouTube goes in the `:extractor` module, behind `StreamSource`.
-- Add tests for logic: see `extractor/src/test` and `app/src/test`.
+- Anything that talks to YouTube goes in the `:core:extractor` module, behind `StreamSource`.
+- Add tests for logic: see `core/extractor/src/test` and `app/src/test`.
 
 ## License
 By contributing, you agree that your contributions are licensed under the project's
