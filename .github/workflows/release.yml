@@ -64,9 +64,17 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # actions/checkout can leave the tag as a lightweight ref pointing at the commit, which would
+          # make the notes the commit message. Fetch the annotated tag object itself.
+          git fetch --force origin "refs/tags/${GITHUB_REF_NAME}:refs/tags/${GITHUB_REF_NAME}"
+          if [ "$(git cat-file -t "${GITHUB_REF_NAME}")" != tag ]; then
+            echo "::error::${GITHUB_REF_NAME} isn't an annotated tag; its message is the release notes (git tag -a)"
+            exit 1
+          fi
+          git tag -l --format='%(contents)' "${GITHUB_REF_NAME}" > "$RUNNER_TEMP/notes.md"
           gh release create "${GITHUB_REF_NAME}" "${{ steps.names.outputs.github }}" \
             --title "FireTube ${GITHUB_REF_NAME#v}" \
-            --notes-file <(git tag -l --format='%(contents)' "${GITHUB_REF_NAME}")
+            --notes-file "$RUNNER_TEMP/notes.md"
 
       - name: Clean up signing material
         if: always()
