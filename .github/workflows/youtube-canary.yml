@@ -24,7 +24,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Live extractor tests
-        run: ./gradlew :extractor:test -Plive --tests '*LiveTest*'
+        run: ./gradlew :core:extractor:test -Plive --tests '*LiveTest*'
 
       - name: Open or update an issue on failure
         if: failure()
