@@ -1,7 +1,7 @@
 # FireTube 🔥
 
 A free, open-source music player for Android, Android TV and Fire TV that plays songs from YouTube.
-**No ads. No analytics.** Official builds send crash reports (Firebase Crashlytics: device model and
+Official builds send crash reports (Firebase Crashlytics: device model and
 crash details, no personal data), which you can turn off in Settings.
 
 <p>
