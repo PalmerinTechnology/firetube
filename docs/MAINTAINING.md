@@ -30,7 +30,16 @@ Without that file, release builds are unsigned.
    - builds both flavors;
    - attaches `FireTube-<version>-<code>.apk` to a GitHub Release, where the in-app updater finds it
      (GitHub adds the source archives);
-   - keeps the Amazon APK as a workflow artifact, for you to upload to the Appstore.
+   - uploads the Amazon APK to the Appstore and submits it for review (see below).
+
+## Amazon Appstore upload
+1. In the Amazon Developer Console: **Settings → Security Profiles → Create**, then enable
+   **App Submission API** for that profile. Note its **client ID** and **client secret**.
+2. Find the app ID: open FireTube's listing; it's the `amzn1.devportal.mobileapp.…` value in the URL.
+3. Add repo secrets `AMAZON_CLIENT_ID`, `AMAZON_CLIENT_SECRET` and `AMAZON_APP_ID`.
+4. Optional: set the repo *variable* `AMAZON_SUBMIT=false` to upload drafts you submit by hand.
+
+Without these secrets, the upload step is skipped and the APK is still kept as a workflow artifact.
 
 ## Firebase (free Spark plan)
 The app uses Crashlytics, Auth (Google sign-in) and Realtime Database.

@@ -1,9 +1,11 @@
 # Push a tag like v2.0.0 to publish a release.
 # - GitHub build: signed APK attached to a GitHub Release in this repo, where the in-app updater
 #   (and Obtainium) finds it. GitHub adds the matching source archives automatically (GPL).
-# - Amazon build: signed APK kept as a workflow artifact, to upload to the Amazon Appstore by hand.
+# - Amazon build: signed APK uploaded to the Amazon Appstore and submitted for review (and kept as
+#   a workflow artifact).
 #
-# Secrets: KEYSTORE_BASE64, STORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD, GOOGLE_SERVICES_JSON.
+# Secrets: KEYSTORE_BASE64, STORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD, GOOGLE_SERVICES_JSON;
+# optional AMAZON_CLIENT_ID, AMAZON_CLIENT_SECRET, AMAZON_APP_ID for the Appstore upload.
 name: Release
 
 on:
@@ -69,6 +71,21 @@ jobs:
           gh release create "${GITHUB_REF_NAME}" "${{ steps.names.outputs.github }}" \
             --title "FireTube ${GITHUB_REF_NAME#v}" \
             --notes-file <(git tag -l --format='%(contents)' "${GITHUB_REF_NAME}")
+
+      # Needs secrets AMAZON_CLIENT_ID, AMAZON_CLIENT_SECRET, AMAZON_APP_ID; skipped until they're set.
+      # Set the repo variable AMAZON_SUBMIT=false to upload as a draft instead of submitting.
+      - name: Upload to the Amazon Appstore
+        env:
+          AMAZON_CLIENT_ID: ${{ secrets.AMAZON_CLIENT_ID }}
+          AMAZON_CLIENT_SECRET: ${{ secrets.AMAZON_CLIENT_SECRET }}
+          AMAZON_APP_ID: ${{ secrets.AMAZON_APP_ID }}
+          AMAZON_SUBMIT: ${{ vars.AMAZON_SUBMIT || 'true' }}
+        run: |
+          if [ -z "$AMAZON_CLIENT_ID" ]; then
+            echo "::notice::Amazon secrets not set; skipping the Appstore upload (APK kept as an artifact)."
+            exit 0
+          fi
+          bash .github/scripts/amazon-upload.sh dist/FireTube-amazon-*.apk
 
       - name: Keep the Amazon APK
         uses: actions/upload-artifact@v4
