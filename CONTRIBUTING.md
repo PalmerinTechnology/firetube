@@ -17,7 +17,7 @@ Check for an open "YouTube canary failing" issue before opening a new one.
 1. Fork the repo and create a branch from `dev`.
 2. Build and test:
    ```sh
-   ./gradlew assembleGithubDebug testGithubDebugUnitTest lintGithubDebug :core:extractor:test
+   ./gradlew assembleDebug testDebugUnitTest lintDebug :core:extractor:test
    ```
    You don't need a Firebase config; see the README.
 3. Keep pull requests focused, one change per PR, and explain *why* in the description.

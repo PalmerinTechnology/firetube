@@ -7,11 +7,7 @@ data class UpdateInfo(
     val downloadUrl: String,
 )
 
-/**
- * Keeps sideloaded installs current. The github flavor checks GitHub Releases and installs the
- * APK in place; the amazon flavor is a no-op because the Appstore handles updates.
- * Each flavor provides `createUpdater(...)`.
- */
+/** Keeps installs current: checks GitHub Releases and installs the new APK in place ([createUpdater]). */
 interface AppUpdater {
     val supported: Boolean
 

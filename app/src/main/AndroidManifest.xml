@@ -18,11 +18,9 @@
     <uses-permission android:name="android.permission.ACCESS_ADSERVICES_AD_ID" tools:node="remove" />
     <uses-permission android:name="android.permission.ACCESS_ADSERVICES_ATTRIBUTION" tools:node="remove" />
 
-    <!-- The Amazon license-key app ("FireTube License Key") marks a supporter. -->
-    <queries>
-        <package android:name="pro.palmerin.firetube" />
-        <package android:name="pro.palmerintech.firetube" />
-    </queries>
+    <!-- Self-updates from GitHub Releases. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
 
     <application
         android:name=".FireTubeApp"
@@ -70,6 +68,10 @@
                 <data android:host="youtu.be" />
             </intent-filter>
         </activity>
+
+        <receiver
+            android:name=".update.InstallResultReceiver"
+            android:exported="false" />
 
         <service
             android:name=".player.PlaybackService"

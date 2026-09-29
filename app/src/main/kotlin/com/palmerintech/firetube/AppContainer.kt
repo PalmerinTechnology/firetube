@@ -1,7 +1,6 @@
 package com.palmerintech.firetube
 
 import android.app.Application
-import android.content.pm.PackageManager
 import androidx.media3.cast.Cast
 import com.google.android.gms.common.ConnectionResult
 import com.google.firebase.FirebaseApp
@@ -80,15 +79,4 @@ class AppContainer(val app: Application) {
     /** Whether this build includes Firebase (official builds do; forks without google-services.json don't). */
     val firebaseConfigured: Boolean = FirebaseApp.getApps(app).isNotEmpty()
 
-    /** Owners of the Amazon "FireTube License Key" app are supporters. */
-    val isSupporter: Boolean by lazy {
-        listOf("pro.palmerin.firetube", "pro.palmerintech.firetube").any { pkg ->
-            try {
-                app.packageManager.getPackageInfo(pkg, 0)
-                true
-            } catch (_: PackageManager.NameNotFoundException) {
-                false
-            }
-        }
-    }
 }

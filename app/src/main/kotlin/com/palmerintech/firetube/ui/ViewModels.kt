@@ -76,7 +76,7 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
      */
     val showSupportCard: StateFlow<Boolean> =
         kotlinx.coroutines.flow.combine(c.library.playCount, c.settings.settings) { plays, s ->
-            Support.donateUrl != null && !c.isSupporter && plays >= Support.PLAYS_BEFORE_ASKING &&
+            Support.donateUrl != null && plays >= Support.PLAYS_BEFORE_ASKING &&
                 System.currentTimeMillis() - s.supportCardDismissedAt > Support.ASK_AGAIN_AFTER_MS
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 

@@ -27,10 +27,9 @@ Without that file, release builds are unsigned.
 2. Push an annotated tag. Its message becomes the release notes:
    `git tag -a v2.0.1 -m "What changed" && git push origin v2.0.1`
 3. The **Release** workflow then:
-   - builds both flavors;
+   - builds the release APK;
    - attaches `FireTube-<version>-<code>.apk` to a GitHub Release, where the in-app updater finds it
      (GitHub adds the source archives);
-   - keeps the Amazon APK as a workflow artifact, for you to upload to the Appstore.
 
 ## Firebase (free Spark plan)
 The app uses Crashlytics, Auth (Google sign-in) and Realtime Database.
