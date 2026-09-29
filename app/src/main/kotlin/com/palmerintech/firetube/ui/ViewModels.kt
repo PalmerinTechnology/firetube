@@ -43,6 +43,13 @@ inline fun <reified VM : ViewModel> appViewModel(key: String? = null, crossinlin
     return viewModel(key = key, factory = viewModelFactory { initializer { create(app.container) } })
 }
 
+/** Identity of a search result, used as its list key. */
+val SearchResult.stableKey: String
+    get() = when (this) {
+        is SearchResult.TrackResult -> "t:" + track.id
+        is SearchResult.PlaylistResult -> "p:" + playlist.url
+    }
+
 /** Loading / content / error for network-backed screens. */
 sealed interface Load<out T> {
     data object Loading : Load<Nothing>
@@ -93,7 +100,7 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
                 // Song-length only: related lists also contain hour-long mixes and compilations.
                 val related = runCatching { c.resolver.resolve(seed!!.id).related }.getOrDefault(emptyList())
                     .filter { it.durationSeconds in 60..900 }
-                _forYou.value = if (related.isEmpty()) null else seed!! to related.take(15)
+                _forYou.value = if (related.isEmpty()) null else seed!! to related.distinctBy { it.id }.take(15)
             }
         }
     }
@@ -173,22 +180,26 @@ class SearchViewModel(private val c: AppContainer) : ViewModel() {
         searchJob = viewModelScope.launch {
             _results.value = Load.Loading
             _results.value = runCatching { c.source.search(q, filter.value) }
-                .fold({ Load.Ready(Results(it.items, it.next)) }, { Load.Failed(it.friendly()) })
+                .fold({ Load.Ready(Results(it.items.distinctBy { r -> r.stableKey }, it.next)) }, { Load.Failed(it.friendly()) })
         }
     }
 
     fun loadMore() {
         val q = _submitted.value ?: return
+        val f = filter.value
         val current = (_results.value as? Load.Ready)?.value ?: return
         val token = current.next ?: return
         if (current.loadingMore) return
         _results.value = Load.Ready(current.copy(loadingMore = true))
         viewModelScope.launch {
-            val page = runCatching { c.source.searchMore(q, filter.value, token) }.getOrNull()
+            val page = runCatching { c.source.searchMore(q, f, token) }.getOrNull()
+            // A new search (or filter) started meanwhile: this page belongs to the old one.
+            if (_submitted.value != q || filter.value != f) return@launch
             val latest = (_results.value as? Load.Ready)?.value ?: return@launch
             _results.value = Load.Ready(
                 if (page == null) latest.copy(loadingMore = false, next = null)
-                else Results(latest.items + page.items, page.next),
+                // YouTube pages overlap and repeat items; list keys must be unique or Compose crashes.
+                else Results((latest.items + page.items).distinctBy { it.stableKey }, page.next),
             )
         }
     }
