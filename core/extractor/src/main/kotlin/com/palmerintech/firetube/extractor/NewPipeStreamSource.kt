@@ -60,7 +60,7 @@ class NewPipeStreamSource(
 
     override suspend fun resolve(trackId: String, preferLowBitrate: Boolean): ResolvedStream = io {
         val info = StreamInfo.getInfo(yt, "https://www.youtube.com/watch?v=$trackId")
-        val related = info.relatedItems.filterIsInstance<StreamInfoItem>().mapNotNull { it.toTrack() }
+        val related = info.relatedItems.filterIsInstance<StreamInfoItem>().mapNotNull { it.toTrack() }.distinctBy { it.id }
         val track = Track(trackId, info.name, info.uploaderName.orEmpty().removeSuffix(" - Topic"), info.duration, info.thumbnails.best())
         if (info.streamType.isLive()) {
             throw ExtractionException("Live streams aren't supported").apply { permanent = true }
@@ -103,7 +103,7 @@ class NewPipeStreamSource(
             }
         }.getOrDefault(emptyList())
         // The trending-music kiosk is often empty; YouTube's global chart playlist is a reliable stand-in.
-        return kiosk.ifEmpty { playlist(TOP_SONGS_GLOBAL).second.items }
+        return kiosk.ifEmpty { playlist(TOP_SONGS_GLOBAL).second.items }.distinctBy { it.id }
     }
 
     /** Runs blocking NewPipe calls off the main thread and maps its exceptions to ours. */

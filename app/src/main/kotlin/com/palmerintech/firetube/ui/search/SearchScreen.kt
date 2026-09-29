@@ -52,6 +52,7 @@ import com.palmerintech.firetube.extractor.SearchResult
 import com.palmerintech.firetube.extractor.Track
 import com.palmerintech.firetube.ui.Load
 import com.palmerintech.firetube.ui.SearchViewModel
+import com.palmerintech.firetube.ui.stableKey
 import com.palmerintech.firetube.ui.appViewModel
 import com.palmerintech.firetube.ui.components.Artwork
 import com.palmerintech.firetube.ui.components.EmptyState
@@ -199,7 +200,4 @@ private fun SearchFilter.label() = when (this) {
     SearchFilter.PLAYLISTS -> "Playlists"
 }
 
-private fun SearchResult.key() = when (this) {
-    is SearchResult.TrackResult -> "t:" + track.id
-    is SearchResult.PlaylistResult -> "p:" + playlist.url
-}
+private fun SearchResult.key() = stableKey
