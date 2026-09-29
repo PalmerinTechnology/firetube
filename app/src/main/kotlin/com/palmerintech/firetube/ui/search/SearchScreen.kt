@@ -158,7 +158,7 @@ private fun Results(
             val nearEnd by remember { derivedStateOf { (listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0) >= listState.layoutInfo.totalItemsCount - 5 } }
             LaunchedEffect(nearEnd, r.items.size) { if (nearEnd) loadMore() }
             LazyColumn(state = listState, contentPadding = contentPadding) {
-                items(r.items, key = { it.key() }) { item ->
+                items(r.items, key = { it.stableKey }) { item ->
                     when (item) {
                         // Tapping a song plays it as a radio: that song, then related songs (autoplay).
                         is SearchResult.TrackResult -> TrackRow(item.track, onClick = { container.player.play(listOf(item.track)) }, onMore = { onMore(item.track) })
@@ -200,4 +200,3 @@ private fun SearchFilter.label() = when (this) {
     SearchFilter.PLAYLISTS -> "Playlists"
 }
 
-private fun SearchResult.key() = stableKey

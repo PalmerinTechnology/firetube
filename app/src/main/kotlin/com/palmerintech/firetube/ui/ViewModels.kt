@@ -186,12 +186,15 @@ class SearchViewModel(private val c: AppContainer) : ViewModel() {
 
     fun loadMore() {
         val q = _submitted.value ?: return
+        val f = filter.value
         val current = (_results.value as? Load.Ready)?.value ?: return
         val token = current.next ?: return
         if (current.loadingMore) return
         _results.value = Load.Ready(current.copy(loadingMore = true))
         viewModelScope.launch {
-            val page = runCatching { c.source.searchMore(q, filter.value, token) }.getOrNull()
+            val page = runCatching { c.source.searchMore(q, f, token) }.getOrNull()
+            // A new search (or filter) started meanwhile: this page belongs to the old one.
+            if (_submitted.value != q || filter.value != f) return@launch
             val latest = (_results.value as? Load.Ready)?.value ?: return@launch
             _results.value = Load.Ready(
                 if (page == null) latest.copy(loadingMore = false, next = null)
