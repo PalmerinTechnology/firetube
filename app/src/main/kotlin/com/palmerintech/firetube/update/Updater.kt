@@ -107,7 +107,7 @@ private class GitHubUpdater(private val context: Context, private val client: Ok
     )
 
     companion object {
-        const val LATEST_RELEASE = "https://api.github.com/repos/spalmerin21/firetube/releases/latest"
+        const val LATEST_RELEASE = "https://api.github.com/repos/PalmerinTechnology/firetube/releases/latest"
         val APK_NAME = Regex("""FireTube-([0-9.]+)-(\d+)\.apk""")
         val json = Json { ignoreUnknownKeys = true }
     }
