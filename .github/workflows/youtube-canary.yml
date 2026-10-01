@@ -10,20 +10,25 @@ on:
   workflow_dispatch:
 
 permissions:
-  actions: write # keep-alive
   contents: read
   issues: write
 
 jobs:
-  live:
+  keepalive:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    permissions:
+      actions: write
     steps:
       - name: Keep this schedule alive
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/youtube-canary.yml/enable"
 
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with:
@@ -33,6 +38,13 @@ jobs:
 
       - name: Live extractor tests
         run: ./gradlew :core:extractor:test -Plive --tests '*LiveTest*'
+
+      - name: Flag skipped checks
+        if: success()
+        run: |
+          if grep -qE 'skipped="[1-9]' core/extractor/build/test-results/test/*LiveTest*.xml; then
+            echo "::warning::Stream check skipped: YouTube bot-checked the runner, so streaming wasn't verified tonight."
+          fi
 
       - name: Open or update an issue on failure
         if: failure()
