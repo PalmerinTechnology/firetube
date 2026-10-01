@@ -1,5 +1,7 @@
 # Nightly check that FireTube can still search, resolve and stream from YouTube.
 # YouTube changes things without notice; this catches it before users do and files an issue.
+# GitHub disables scheduled workflows after 60 days without repo activity, so each run re-enables
+# itself, which resets that timer without needing commits.
 name: YouTube canary
 
 on:
@@ -8,6 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: write # keep-alive
   contents: read
   issues: write
 
@@ -16,6 +19,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - name: Keep this schedule alive
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/youtube-canary.yml/enable"
+
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with:
