@@ -5,7 +5,9 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Test
+import org.schabi.newpipe.extractor.exceptions.SignInConfirmNotBotException
 
 /**
  * Talks to real YouTube. Excluded from normal runs; `./gradlew :extractor:test -Plive`.
@@ -40,7 +42,14 @@ class NewPipeStreamSourceLiveTest {
     fun knownTracksResolveAndStreamBytes() = runBlocking {
         val http = OkHttpClient()
         for (id in knownTracks) {
-            val stream = source.resolve(id)
+            val stream = try {
+                source.resolve(id)
+            } catch (e: ExtractionException) {
+                // YouTube asks datacenter IPs (like CI runners) to sign in, while real devices still
+                // play. That says nothing about the extractor, so skip rather than fail.
+                assumeTrue("YouTube bot check from this IP; skipping stream check", e.cause !is SignInConfirmNotBotException)
+                throw e
+            }
             println("$id -> ${stream.mimeType} ${stream.bitrate}bps, related=${stream.related.size}")
             assertEquals(id, stream.trackId)
             // Resolving isn't enough — YouTube can hand out URLs that 403. Fetch real audio bytes.

@@ -1,5 +1,7 @@
 # Nightly check that FireTube can still search, resolve and stream from YouTube.
 # YouTube changes things without notice; this catches it before users do and files an issue.
+# GitHub disables scheduled workflows after 60 days without repo activity, so each run re-enables
+# itself, which resets that timer without needing commits.
 name: YouTube canary
 
 on:
@@ -12,6 +14,17 @@ permissions:
   issues: write
 
 jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Keep this schedule alive
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/youtube-canary.yml/enable"
+
   live:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -25,6 +38,13 @@ jobs:
 
       - name: Live extractor tests
         run: ./gradlew :core:extractor:test -Plive --tests '*LiveTest*'
+
+      - name: Flag skipped checks
+        if: success()
+        run: |
+          if grep -qE 'skipped="[1-9]' core/extractor/build/test-results/test/*LiveTest*.xml; then
+            echo "::warning::Stream check skipped: YouTube bot-checked the runner, so streaming wasn't verified tonight."
+          fi
 
       - name: Open or update an issue on failure
         if: failure()
