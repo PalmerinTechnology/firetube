@@ -68,10 +68,12 @@ class PlayerSheetState(initiallyExpanded: Boolean, private val scope: CoroutineS
         expanded = open
         animation?.cancel()
         animation = scope.launch {
-            // Carry the finger's speed into the spring (progress grows as the finger moves up).
+            // Carry the finger's speed into the spring (progress grows as the finger moves up). A
+            // fast flick makes the spring overshoot; clamp it, since nothing past fully open or
+            // closed exists (and a negative corner radius would crash Now Playing).
             val velocity = -velocityPx / travel.coerceAtLeast(1f)
             animate(progress, if (open) 1f else 0f, velocity, spring(stiffness = Spring.StiffnessMediumLow)) { value, _ ->
-                progress = value
+                progress = value.coerceIn(0f, 1f)
             }
         }
     }

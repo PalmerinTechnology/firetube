@@ -165,7 +165,8 @@ fun FireTubeRoot(container: AppContainer, pendingLink: String?, onLinkHandled: (
     val cardInset = with(LocalDensity.current) { 4.dp.toPx() }
     // The queue ran out while Now Playing was open: close it, or it would pop back open by itself
     // with the next song and keep D-pad focus out of the app meanwhile.
-    LaunchedEffect(playerState.current == null) { if (playerState.current == null && sheet.expanded) sheet.collapse() }
+    // Also covers a drag up from the mini player cut short by the mini player disappearing.
+    LaunchedEffect(playerState.current == null) { if (playerState.current == null && sheet.isVisible) sheet.collapse() }
     CompositionLocalProvider(LocalTrackMenu provides menu, LocalNowPlaying provides nowPlaying) {
         Box(Modifier.fillMaxSize()) {
             val wide = LocalConfiguration.current.screenWidthDp >= WIDE_SCREEN_DP

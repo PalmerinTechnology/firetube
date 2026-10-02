@@ -103,6 +103,23 @@ class NowPlayingDragTest {
         assertSettled()
     }
 
+    @Test
+    fun aHardFlickUpNearTheTopDoesNotOvershoot() {
+        compose.setContent { sheet = rememberPlayerSheetState().apply { travel = 2000f } }
+        compose.mainClock.autoAdvance = false
+        compose.runOnIdle {
+            sheet.dragBy(-1900f) // 95% open
+            sheet.settle(velocityPx = -8000f, flingPx = 2000f)
+        }
+        var highest = 0f
+        repeat(60) {
+            compose.mainClock.advanceTimeByFrame()
+            highest = maxOf(highest, sheet.progress)
+        }
+        assertTrue("overshot to $highest", highest <= 1f)
+        assertEquals(1f, sheet.progress, 0.001f)
+    }
+
     private companion object {
         const val TAG = "now-playing"
     }
