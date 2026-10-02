@@ -25,6 +25,7 @@ splashscreen = "1.2.0"
 media3 = "1.11.1"
 room = "2.8.5"
 coil = "3.6.3"
+palette = "1.0.0"
 firebaseBom = "34.19.0"
 credentials = "1.6.0"
 googleid = "1.2.1"
@@ -72,6 +73,7 @@ room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
 room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
 coil-network-okhttp = { module = "io.coil-kt.coil3:coil-network-okhttp", version.ref = "coil" }
+androidx-palette = { module = "androidx.palette:palette-ktx", version.ref = "palette" }
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }
 firebase-crashlytics = { module = "com.google.firebase:firebase-crashlytics" }
 firebase-auth = { module = "com.google.firebase:firebase-auth" }
