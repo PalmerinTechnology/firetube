@@ -191,7 +191,8 @@ fun FireTubeRoot(container: AppContainer, pendingLink: String?, onLinkHandled: (
                     // Without a NavigationBar below it (wide layout), the mini player must clear the system nav bar itself.
                     Column(if (wide) Modifier.windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom)) else Modifier) {
                         MiniPlayer(
-                            playerState, container.player::togglePlay, container.player::next, onOpen = { showPlayer = true },
+                            playerState, container.player::togglePlay, container.player::next, container.player::previousTrack,
+                            onOpen = { showPlayer = true },
                             modifier = Modifier.focusRequester(miniPlayerFocus),
                         )
                         if (!wide) {

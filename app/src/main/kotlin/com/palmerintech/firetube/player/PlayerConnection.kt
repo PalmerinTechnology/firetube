@@ -30,6 +30,8 @@ data class PlayerUiState(
     val currentIndex: Int = -1,
     val shuffle: Boolean = false,
     val repeatMode: Int = Player.REPEAT_MODE_OFF,
+    val hasNext: Boolean = false,
+    val hasPrevious: Boolean = false,
 )
 
 /**
@@ -114,6 +116,9 @@ class PlayerConnection(private val context: Context, private val scope: Coroutin
 
     fun next() = withController { it.seekToNextMediaItem() }
     fun previous() = withController { it.seekToPrevious() }
+
+    /** Always changes track (unlike [previous], which restarts the song when it's past the start). */
+    fun previousTrack() = withController { if (it.hasPreviousMediaItem()) it.seekToPreviousMediaItem() else it.seekTo(0) }
     fun seekTo(ms: Long) = withController { it.seekTo(ms) }
     fun skipTo(index: Int) = withController { it.seekToDefaultPosition(index); it.play() }
     fun toggleShuffle() = withController { it.shuffleModeEnabled = !it.shuffleModeEnabled }
@@ -148,6 +153,8 @@ class PlayerConnection(private val context: Context, private val scope: Coroutin
             currentIndex = p.currentMediaItemIndex,
             shuffle = p.shuffleModeEnabled,
             repeatMode = p.repeatMode,
+            hasNext = p.hasNextMediaItem(),
+            hasPrevious = p.hasPreviousMediaItem(),
         )
         if (p.isPlaying) startTicker(p) else ticker?.cancel()
     }

@@ -17,6 +17,21 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.animation.core.Animatable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
+import kotlin.math.abs
 import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -102,11 +117,87 @@ import kotlinx.coroutines.launch
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 
+/**
+ * The bar above the bottom navigation. Tap or swipe up to open the full player; swipe left for
+ * the next track and right for the previous one (the bar slides along and springs back when the
+ * queue has nothing in that direction).
+ */
 @Composable
-fun MiniPlayer(state: PlayerUiState, onTogglePlay: () -> Unit, onNext: () -> Unit, onOpen: () -> Unit, modifier: Modifier = Modifier) {
+fun MiniPlayer(
+    state: PlayerUiState,
+    onTogglePlay: () -> Unit,
+    onNext: () -> Unit,
+    onPrevious: () -> Unit,
+    onOpen: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val track = state.current ?: return
+    val scope = rememberCoroutineScope()
+    val offsetX = remember { Animatable(0f) }
+    var width by remember { mutableIntStateOf(1) }
+    val density = LocalDensity.current
+    val openDistance = with(density) { 48.dp.toPx() }
+    val flingSpeed = with(density) { 800.dp.toPx() }
+    // The gesture outlives recompositions; read the latest state and callbacks.
+    val latest by rememberUpdatedState(state)
+    val next by rememberUpdatedState(onNext)
+    val previous by rememberUpdatedState(onPrevious)
+    val open by rememberUpdatedState(onOpen)
+
+    val swipe = Modifier.pointerInput(Unit) {
+        val tracker = VelocityTracker()
+        var totalX = 0f
+        var totalY = 0f
+        var axis: Orientation? = null
+        detectDragGestures(
+            onDragStart = { totalX = 0f; totalY = 0f; axis = null; tracker.resetTracking() },
+            onDragCancel = { scope.launch { offsetX.animateTo(0f) } },
+            onDragEnd = {
+                val velocity = tracker.calculateVelocity()
+                when (axis) {
+                    Orientation.Vertical -> if (totalY < -openDistance || velocity.y < -flingSpeed) open()
+                    Orientation.Horizontal -> scope.launch {
+                        val x = offsetX.value
+                        val far = width * 0.3f
+                        val toNext = x < 0 && (x < -far || velocity.x < -flingSpeed) && latest.hasNext
+                        val toPrevious = x > 0 && (x > far || velocity.x > flingSpeed) && latest.hasPrevious
+                        if (toNext || toPrevious) {
+                            val out = if (toNext) -width.toFloat() else width.toFloat()
+                            offsetX.animateTo(out)
+                            if (toNext) next() else previous()
+                            offsetX.snapTo(-out * 0.4f) // the new track slides in from the other side
+                        }
+                        offsetX.animateTo(0f)
+                    }
+                    null -> Unit
+                }
+            },
+        ) { change, amount ->
+            change.consume()
+            tracker.addPosition(change.uptimeMillis, change.position)
+            totalX += amount.x
+            totalY += amount.y
+            if (axis == null) axis = if (abs(totalX) > abs(totalY)) Orientation.Horizontal else Orientation.Vertical
+            if (axis == Orientation.Horizontal) scope.launch { offsetX.snapTo(offsetX.value + amount.x) }
+        }
+    }
+
     Surface(
-        modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp).clip(RoundedCornerShape(14.dp)).clickable(onClick = onOpen),
+        modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)
+            .onSizeChanged { width = it.width.coerceAtLeast(1) }
+            .graphicsLayer {
+                translationX = offsetX.value
+                alpha = 1f - (abs(offsetX.value) / width).coerceAtMost(1f) * 0.6f
+            }
+            .clip(RoundedCornerShape(14.dp))
+            .then(swipe)
+            .semantics {
+                customActions = listOf(
+                    CustomAccessibilityAction("Previous track") { onPrevious(); true },
+                    CustomAccessibilityAction("Next track") { onNext(); true },
+                )
+            }
+            .clickable(onClick = onOpen),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         tonalElevation = 3.dp,
     ) {
@@ -189,11 +280,26 @@ fun NowPlayingScreen(
 
     BackHandler(onBack = onClose)
 
+    // Swipe the whole screen down to collapse it back into the mini player.
+    val dragY = remember { Animatable(0f) }
+    var height by remember { mutableIntStateOf(1) }
+    val closeSpeed = with(LocalDensity.current) { 1000.dp.toPx() }
+    val dragToClose = rememberDraggableState { delta -> scope.launch { dragY.snapTo((dragY.value + delta).coerceAtLeast(0f)) } }
+
     val playFocus = remember { FocusRequester() }
     // D-pad users land on Play when the player opens (a no-op in touch mode).
     LaunchedEffect(Unit) { runCatching { playFocus.requestFocus() } }
     Box(
-        Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)
+        Modifier.fillMaxSize()
+            .onSizeChanged { height = it.height.coerceAtLeast(1) }
+            .draggable(
+                dragToClose, Orientation.Vertical,
+                onDragStopped = { velocity ->
+                    if (dragY.value > height * 0.25f || velocity > closeSpeed) onClose() else dragY.animateTo(0f)
+                },
+            )
+            .graphicsLayer { translationY = dragY.value }
+            .background(MaterialTheme.colorScheme.surface)
             .focusProperties { onExit = { if (trapFocus) cancelFocusChange() } }
             .focusGroup(),
     ) {
