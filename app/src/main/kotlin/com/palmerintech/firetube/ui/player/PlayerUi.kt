@@ -185,17 +185,19 @@ fun MiniPlayer(
     Surface(
         modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)
             .onSizeChanged { width = it.width.coerceAtLeast(1) }
+            // Outside the graphicsLayer: pointer positions must not move with the bar, or the
+            // velocity tracker sees ~0 and flicks never skip.
+            .then(swipe)
             .graphicsLayer {
                 translationX = offsetX.value
                 alpha = 1f - (abs(offsetX.value) / width).coerceAtMost(1f) * 0.6f
             }
             .clip(RoundedCornerShape(14.dp))
-            .then(swipe)
             .semantics {
-                customActions = listOf(
-                    CustomAccessibilityAction("Previous track") { onPrevious(); true },
-                    CustomAccessibilityAction("Next track") { onNext(); true },
-                )
+                customActions = buildList {
+                    if (state.hasPrevious) add(CustomAccessibilityAction("Previous track") { onPrevious(); true })
+                    if (state.hasNext) add(CustomAccessibilityAction("Next track") { onNext(); true })
+                }
             }
             .clickable(onClick = onOpen),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -285,6 +287,8 @@ fun NowPlayingScreen(
     var height by remember { mutableIntStateOf(1) }
     val closeSpeed = with(LocalDensity.current) { 1000.dp.toPx() }
     val dragToClose = rememberDraggableState { delta -> scope.launch { dragY.snapTo((dragY.value + delta).coerceAtLeast(0f)) } }
+    // Reopened while still sliding out after a swipe-to-close: start from the top again.
+    LaunchedEffect(trapFocus) { if (trapFocus) dragY.snapTo(0f) }
 
     val playFocus = remember { FocusRequester() }
     // D-pad users land on Play when the player opens (a no-op in touch mode).
