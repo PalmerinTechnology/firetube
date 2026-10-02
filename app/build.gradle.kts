@@ -34,8 +34,8 @@ android {
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
         // 1.x ended at 95. CI may override with VERSION_CODE.
-        versionCode = providers.environmentVariable("VERSION_CODE").orNull?.toInt() ?: 202
-        versionName = "2.0.2"
+        versionCode = providers.environmentVariable("VERSION_CODE").orNull?.toInt() ?: 203
+        versionName = "2.0.3"
         // Tip jar link (Ko-fi / Buy Me a Coffee / PayPal.me). Empty = every support prompt is hidden.
         buildConfigField("String", "DONATE_URL", "\"https://ko-fi.com/stevepalmerin\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -147,9 +147,12 @@ dependencies {
     implementation(libs.timber)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
 
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.androidx.compose.ui.test.junit4)
 }
