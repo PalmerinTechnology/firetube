@@ -1,10 +1,5 @@
 package com.palmerintech.firetube.ui
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -35,6 +30,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalDensity
+import com.palmerintech.firetube.ui.player.PlayerSheetState
+import com.palmerintech.firetube.ui.player.rememberArtworkColor
 import com.palmerintech.firetube.ui.components.FlameIcon
 import com.palmerintech.firetube.ui.components.focusRing
 import androidx.compose.material3.Scaffold
@@ -108,7 +112,10 @@ fun FireTubeRoot(container: AppContainer, pendingLink: String?, onLinkHandled: (
     val menu = remember { TrackMenuController() }
     val scope = rememberCoroutineScope()
     val playerState by container.player.state.collectAsState()
-    var showPlayer by rememberSaveable { mutableStateOf(false) }
+    // Now Playing's position; survives rotation through playerOpen.
+    var playerOpen by rememberSaveable { mutableStateOf(false) }
+    val sheet = remember { PlayerSheetState(initiallyExpanded = playerOpen) }
+    LaunchedEffect(sheet.expanded) { playerOpen = sheet.expanded }
     val backStack by nav.currentBackStackEntryAsState()
     val showMessage: (String) -> Unit = { msg -> scope.launch { snackbar.showSnackbar(msg) } }
 
@@ -133,7 +140,7 @@ fun FireTubeRoot(container: AppContainer, pendingLink: String?, onLinkHandled: (
                     track == null -> showMessage("Couldn't open that video")
                     else -> {
                         container.player.play(listOf(track))
-                        showPlayer = true
+                        scope.launch { sheet.expand() }
                     }
                 }
             }
@@ -147,10 +154,18 @@ fun FireTubeRoot(container: AppContainer, pendingLink: String?, onLinkHandled: (
     // (closing drops focus; this is a no-op in touch mode).
     val miniPlayerFocus = remember { FocusRequester() }
     var playerWasOpen by remember { mutableStateOf(false) }
-    LaunchedEffect(showPlayer) {
-        if (playerWasOpen && !showPlayer) runCatching { miniPlayerFocus.requestFocus() }
-        playerWasOpen = showPlayer
+    LaunchedEffect(sheet.expanded) {
+        if (playerWasOpen && !sheet.expanded) runCatching { miniPlayerFocus.requestFocus() }
+        playerWasOpen = sheet.expanded
     }
+    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val accent = rememberArtworkColor(playerState.current?.thumbnailUrl, dark)
+    val flingSpeed = with(LocalDensity.current) { 800.dp.toPx() }
+    // The mini player card sits 4dp below its measured top; Now Playing's copy adds the same padding.
+    val cardInset = with(LocalDensity.current) { 4.dp.toPx() }
+    // The queue ran out while Now Playing was open: close it, or it would pop back open by itself
+    // with the next song and keep D-pad focus out of the app meanwhile.
+    LaunchedEffect(playerState.current == null) { if (playerState.current == null && sheet.expanded) sheet.collapse() }
     CompositionLocalProvider(LocalTrackMenu provides menu, LocalNowPlaying provides nowPlaying) {
         Box(Modifier.fillMaxSize()) {
             val wide = LocalConfiguration.current.screenWidthDp >= WIDE_SCREEN_DP
@@ -165,7 +180,7 @@ fun FireTubeRoot(container: AppContainer, pendingLink: String?, onLinkHandled: (
             // While Now Playing covers the screen, D-pad focus must not wander to what's behind it.
             Row(
                 Modifier.fillMaxSize()
-                    .focusProperties { onEnter = { if (showPlayer) cancelFocusChange() } }
+                    .focusProperties { onEnter = { if (sheet.expanded) cancelFocusChange() } }
                     .focusGroup(),
             ) {
             if (wide) {
@@ -192,8 +207,13 @@ fun FireTubeRoot(container: AppContainer, pendingLink: String?, onLinkHandled: (
                     Column(if (wide) Modifier.windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom)) else Modifier) {
                         MiniPlayer(
                             playerState, container.player::togglePlay, container.player::next, container.player::previousTrack,
-                            onOpen = { showPlayer = true },
-                            modifier = Modifier.focusRequester(miniPlayerFocus),
+                            onOpen = { scope.launch { sheet.expand() } },
+                            modifier = Modifier.focusRequester(miniPlayerFocus)
+                                // Now Playing's top edge starts at the mini player's top.
+                                .onGloballyPositioned { sheet.travel = it.positionInRoot().y - cardInset },
+                            onDrag = { delta -> scope.launch { sheet.dragBy(delta) } },
+                            onDragEnd = { velocity -> scope.launch { sheet.settle(velocity, flingSpeed) } },
+                            accent = accent,
                         )
                         if (!wide) {
                             NavigationBar {
@@ -252,12 +272,10 @@ fun FireTubeRoot(container: AppContainer, pendingLink: String?, onLinkHandled: (
             }
 
             }
-            AnimatedVisibility(
-                visible = showPlayer && playerState.current != null,
-                enter = slideInVertically { it } + fadeIn(),
-                exit = slideOutVertically { it } + fadeOut(),
-            ) {
-                NowPlayingScreen(container, onClose = { showPlayer = false }, trapFocus = showPlayer)
+            if (playerState.current != null && sheet.isVisible) {
+                // Dims the app behind Now Playing as it comes up.
+                Box(Modifier.fillMaxSize().drawBehind { drawRect(Color.Black, alpha = 0.5f * sheet.progress.value) })
+                NowPlayingScreen(container, sheet, onClose = { scope.launch { sheet.collapse() } }, accent = accent)
             }
         }
         TrackMenuHost(container, menu, showMessage)
