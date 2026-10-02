@@ -19,18 +19,19 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * A color taken from the artwork for tinting the player, or null until it's ready (or when the
- * artwork has no usable color). Reuses Coil's cache, so it costs one small decode per track.
+ * A color taken from the artwork for tinting the player, or null when there's none (no artwork,
+ * or no usable color). On a track change the previous color stays until the new one is ready, so
+ * the tint doesn't flash back to the theme color in between.
  */
 @Composable
 fun rememberArtworkColor(url: String?, dark: Boolean): Color? {
     val context = LocalContext.current
-    var color by remember(url, dark) { mutableStateOf<Color?>(null) }
+    var color by remember(dark) { mutableStateOf<Color?>(null) }
     LaunchedEffect(url, dark) {
-        if (url == null) return@LaunchedEffect
+        if (url == null) { color = null; return@LaunchedEffect }
         val request = ImageRequest.Builder(context).data(url).size(96).allowHardware(false).build()
         val bitmap = (SingletonImageLoader.get(context).execute(request) as? SuccessResult)?.image?.toBitmap()
-            ?: return@LaunchedEffect
+        if (bitmap == null) { color = null; return@LaunchedEffect }
         color = withContext(Dispatchers.Default) {
             val palette = Palette.from(bitmap).maximumColorCount(16).generate()
             val swatch = palette.vibrantSwatch ?: palette.darkVibrantSwatch ?: palette.mutedSwatch ?: palette.dominantSwatch

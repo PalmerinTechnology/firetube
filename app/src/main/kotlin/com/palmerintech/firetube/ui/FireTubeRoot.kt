@@ -161,6 +161,11 @@ fun FireTubeRoot(container: AppContainer, pendingLink: String?, onLinkHandled: (
     val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val accent = rememberArtworkColor(playerState.current?.thumbnailUrl, dark)
     val flingSpeed = with(LocalDensity.current) { 800.dp.toPx() }
+    // The mini player card sits 4dp below its measured top; Now Playing's copy adds the same padding.
+    val cardInset = with(LocalDensity.current) { 4.dp.toPx() }
+    // The queue ran out while Now Playing was open: close it, or it would pop back open by itself
+    // with the next song and keep D-pad focus out of the app meanwhile.
+    LaunchedEffect(playerState.current == null) { if (playerState.current == null && sheet.expanded) sheet.collapse() }
     CompositionLocalProvider(LocalTrackMenu provides menu, LocalNowPlaying provides nowPlaying) {
         Box(Modifier.fillMaxSize()) {
             val wide = LocalConfiguration.current.screenWidthDp >= WIDE_SCREEN_DP
@@ -205,7 +210,7 @@ fun FireTubeRoot(container: AppContainer, pendingLink: String?, onLinkHandled: (
                             onOpen = { scope.launch { sheet.expand() } },
                             modifier = Modifier.focusRequester(miniPlayerFocus)
                                 // Now Playing's top edge starts at the mini player's top.
-                                .onGloballyPositioned { sheet.travel = it.positionInRoot().y },
+                                .onGloballyPositioned { sheet.travel = it.positionInRoot().y - cardInset },
                             onDrag = { delta -> scope.launch { sheet.dragBy(delta) } },
                             onDragEnd = { velocity -> scope.launch { sheet.settle(velocity, flingSpeed) } },
                             accent = accent,

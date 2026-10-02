@@ -319,14 +319,15 @@ fun NowPlayingScreen(
     val flingSpeed = with(LocalDensity.current) { 1000.dp.toPx() }
     val sheetCorner = with(LocalDensity.current) { 20.dp.toPx() }
     val drag = rememberDraggableState { delta -> scope.launch { sheet.dragBy(delta) } }
-    // While nearly collapsed, the top of the screen shows the mini player it's coming out of.
-    val nearlyCollapsed by remember { derivedStateOf { sheet.progress.value < 0.35f } }
+    // While nearly collapsed, the top of the screen shows the mini player it's coming out of; the
+    // controls only exist once they start fading in, so nothing invisible can be tapped.
+    val nearlyCollapsed by remember { derivedStateOf { sheet.progress.value < CONTROLS_FROM } }
     val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val wash = accent ?: MaterialTheme.colorScheme.primary
 
     val playFocus = remember { FocusRequester() }
     // D-pad users land on Play when the player opens (a no-op in touch mode).
-    LaunchedEffect(trapFocus) { if (trapFocus) runCatching { playFocus.requestFocus() } }
+    LaunchedEffect(trapFocus, nearlyCollapsed) { if (trapFocus && !nearlyCollapsed) runCatching { playFocus.requestFocus() } }
     Box(
         Modifier.fillMaxSize()
             .draggable(drag, Orientation.Vertical, onDragStopped = { velocity -> sheet.settle(velocity, flingSpeed) })
@@ -362,10 +363,10 @@ fun NowPlayingScreen(
                 ),
             )
 
-            Column(
+            if (!nearlyCollapsed) Column(
                 Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(horizontal = 24.dp)
-                // Fades in once the mini player shown at the top has faded out, so the two never overlap.
-                .graphicsLayer { alpha = ((sheet.progress.value - 0.25f) / 0.3f).coerceIn(0f, 1f) },
+                    // Fades in once the mini player shown at the top has faded out, so the two never overlap.
+                    .graphicsLayer { alpha = ((sheet.progress.value - CONTROLS_FROM) / 0.3f).coerceIn(0f, 1f) },
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onClose) { Icon(Icons.Default.KeyboardArrowDown, "Close player") }
@@ -453,7 +454,7 @@ fun NowPlayingScreen(
             if (nearlyCollapsed) {
                 MiniPlayerCard(
                     state, player::togglePlay, player::next, accent,
-                    Modifier.graphicsLayer { alpha = 1f - ((sheet.progress.value - 0.1f) / 0.15f).coerceIn(0f, 1f) },
+                    Modifier.graphicsLayer { alpha = 1f - ((sheet.progress.value - 0.1f) / (CONTROLS_FROM - 0.1f)).coerceIn(0f, 1f) },
                 )
             }
         }
@@ -463,6 +464,9 @@ fun NowPlayingScreen(
     if (showSleep) SleepSheet(container.sleepTimer, sleep) { showSleep = false }
     if (addToPlaylist) AddToPlaylistDialog(container, listOf(track)) { addToPlaylist = false }
 }
+
+/** Sheet progress at which Now Playing's controls replace the mini player shown at its top. */
+private const val CONTROLS_FROM = 0.25f
 
 @UnstableApi
 @OptIn(ExperimentalMaterial3Api::class)

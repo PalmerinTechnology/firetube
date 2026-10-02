@@ -4,6 +4,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -26,10 +27,16 @@ class PlayerSheetState(initiallyExpanded: Boolean = false) {
     /** Pixels Now Playing's top edge travels between collapsed (the mini player's top) and expanded. */
     var travel by mutableFloatStateOf(1f)
 
-    /** Now Playing needs to be on screen: open, opening, or part-way through a drag. */
-    val isVisible: Boolean get() = expanded || progress.value > 0f
+    /**
+     * Now Playing needs to be on screen: open, opening, or part-way through a drag. Derived, so
+     * readers recompose only when it flips, not on every frame of a drag.
+     */
+    val isVisible: Boolean by derivedStateOf { expanded || progress.value > 0f }
 
-    /** Follows a vertical drag; [deltaPx] is negative when the finger moves up. */
+    /**
+     * Follows a vertical drag; [deltaPx] is negative when the finger moves up. Callers launch this
+     * and [settle] from the main thread, whose single dispatcher keeps them in order.
+     */
     suspend fun dragBy(deltaPx: Float) {
         progress.snapTo((progress.value - deltaPx / travel.coerceAtLeast(1f)).coerceIn(0f, 1f))
     }
