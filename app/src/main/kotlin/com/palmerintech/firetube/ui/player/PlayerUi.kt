@@ -79,6 +79,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -118,7 +122,8 @@ import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 
 /**
- * The bar above the bottom navigation. Tap or swipe up to open the full player; swipe left for
+ * The bar above the bottom navigation. Drag it up and Now Playing follows the finger out of it
+ * ([onDrag] / [onDragEnd] feed the shared [PlayerSheetState]); a tap opens it too. Swipe left for
  * the next track and right for the previous one (the bar slides along and springs back when the
  * queue has nothing in that direction).
  */
@@ -130,19 +135,23 @@ fun MiniPlayer(
     onPrevious: () -> Unit,
     onOpen: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Vertical drag, in px (negative = up). */
+    onDrag: (Float) -> Unit = {},
+    /** Vertical drag released, with its velocity in px/s (negative = up). */
+    onDragEnd: (Float) -> Unit = {},
+    accent: Color? = null,
 ) {
     val track = state.current ?: return
     val scope = rememberCoroutineScope()
     val offsetX = remember { Animatable(0f) }
     var width by remember { mutableIntStateOf(1) }
-    val density = LocalDensity.current
-    val openDistance = with(density) { 48.dp.toPx() }
-    val flingSpeed = with(density) { 800.dp.toPx() }
+    val flingSpeed = with(LocalDensity.current) { 800.dp.toPx() }
     // The gesture outlives recompositions; read the latest state and callbacks.
     val latest by rememberUpdatedState(state)
     val next by rememberUpdatedState(onNext)
     val previous by rememberUpdatedState(onPrevious)
-    val open by rememberUpdatedState(onOpen)
+    val drag by rememberUpdatedState(onDrag)
+    val dragEnd by rememberUpdatedState(onDragEnd)
 
     val swipe = Modifier.pointerInput(Unit) {
         val tracker = VelocityTracker()
@@ -151,11 +160,14 @@ fun MiniPlayer(
         var axis: Orientation? = null
         detectDragGestures(
             onDragStart = { totalX = 0f; totalY = 0f; axis = null; tracker.resetTracking() },
-            onDragCancel = { scope.launch { offsetX.animateTo(0f) } },
+            onDragCancel = {
+                if (axis == Orientation.Vertical) dragEnd(0f)
+                scope.launch { offsetX.animateTo(0f) }
+            },
             onDragEnd = {
                 val velocity = tracker.calculateVelocity()
                 when (axis) {
-                    Orientation.Vertical -> if (totalY < -openDistance || velocity.y < -flingSpeed) open()
+                    Orientation.Vertical -> dragEnd(velocity.y)
                     Orientation.Horizontal -> scope.launch {
                         val x = offsetX.value
                         val far = width * 0.3f
@@ -178,13 +190,16 @@ fun MiniPlayer(
             totalX += amount.x
             totalY += amount.y
             if (axis == null) axis = if (abs(totalX) > abs(totalY)) Orientation.Horizontal else Orientation.Vertical
-            if (axis == Orientation.Horizontal) scope.launch { offsetX.snapTo(offsetX.value + amount.x) }
+            when (axis) {
+                Orientation.Horizontal -> scope.launch { offsetX.snapTo(offsetX.value + amount.x) }
+                else -> drag(amount.y)
+            }
         }
     }
 
-    Surface(
-        modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)
-            .onSizeChanged { width = it.width.coerceAtLeast(1) }
+    MiniPlayerCard(
+        state, onTogglePlay, onNext, accent,
+        modifier.onSizeChanged { width = it.width.coerceAtLeast(1) }
             // Outside the graphicsLayer: pointer positions must not move with the bar, or the
             // velocity tracker sees ~0 and flicks never skip.
             .then(swipe)
@@ -200,12 +215,28 @@ fun MiniPlayer(
                 }
             }
             .clickable(onClick = onOpen),
+    )
+}
+
+/** The mini player's look, without its gestures; Now Playing also shows it while being dragged. */
+@Composable
+private fun MiniPlayerCard(
+    state: PlayerUiState,
+    onTogglePlay: () -> Unit,
+    onNext: () -> Unit,
+    accent: Color?,
+    modifier: Modifier = Modifier,
+) {
+    val track = state.current ?: return
+    Surface(
+        Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp).then(modifier),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shape = RoundedCornerShape(14.dp),
         tonalElevation = 3.dp,
     ) {
         Column(
             Modifier.background(
-                Brush.horizontalGradient(listOf(MaterialTheme.colorScheme.primary.copy(alpha = 0.22f), Color.Transparent)),
+                Brush.horizontalGradient(listOf((accent ?: MaterialTheme.colorScheme.primary).copy(alpha = if (accent != null) 0.45f else 0.22f), Color.Transparent)),
             ),
         ) {
             Row(Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -260,10 +291,12 @@ private fun PlayPauseButton(state: PlayerUiState, onClick: () -> Unit, small: Bo
 @Composable
 fun NowPlayingScreen(
     container: AppContainer,
+    sheet: PlayerSheetState,
     onClose: () -> Unit,
-    /** Keep D-pad focus inside while open; released as soon as closing starts so focus can go back. */
-    trapFocus: Boolean = true,
+    accent: Color? = null,
 ) {
+    // Keep D-pad focus inside while open; released as soon as closing starts so focus can go back.
+    val trapFocus = sheet.expanded
     val state by container.player.state.collectAsState()
     val track = state.current
     if (track == null) {
@@ -280,128 +313,148 @@ fun NowPlayingScreen(
     var addToPlaylist by remember { mutableStateOf(false) }
     var scrubbing by remember { mutableStateOf<Float?>(null) }
 
-    BackHandler(onBack = onClose)
+    BackHandler(enabled = sheet.expanded, onBack = onClose)
 
-    // Swipe the whole screen down to collapse it back into the mini player.
-    val dragY = remember { Animatable(0f) }
-    var height by remember { mutableIntStateOf(1) }
-    val closeSpeed = with(LocalDensity.current) { 1000.dp.toPx() }
-    val dragToClose = rememberDraggableState { delta -> scope.launch { dragY.snapTo((dragY.value + delta).coerceAtLeast(0f)) } }
-    // Reopened while still sliding out after a swipe-to-close: start from the top again.
-    LaunchedEffect(trapFocus) { if (trapFocus) dragY.snapTo(0f) }
+    // Drag the whole screen down (or back up) and it follows the finger; see PlayerSheetState.
+    val flingSpeed = with(LocalDensity.current) { 1000.dp.toPx() }
+    val sheetCorner = with(LocalDensity.current) { 20.dp.toPx() }
+    val drag = rememberDraggableState { delta -> scope.launch { sheet.dragBy(delta) } }
+    // While nearly collapsed, the top of the screen shows the mini player it's coming out of.
+    val nearlyCollapsed by remember { derivedStateOf { sheet.progress.value < 0.35f } }
+    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val wash = accent ?: MaterialTheme.colorScheme.primary
 
     val playFocus = remember { FocusRequester() }
     // D-pad users land on Play when the player opens (a no-op in touch mode).
-    LaunchedEffect(Unit) { runCatching { playFocus.requestFocus() } }
+    LaunchedEffect(trapFocus) { if (trapFocus) runCatching { playFocus.requestFocus() } }
     Box(
         Modifier.fillMaxSize()
-            .onSizeChanged { height = it.height.coerceAtLeast(1) }
-            .draggable(
-                dragToClose, Orientation.Vertical,
-                onDragStopped = { velocity ->
-                    if (dragY.value > height * 0.25f || velocity > closeSpeed) onClose() else dragY.animateTo(0f)
-                },
-            )
-            .graphicsLayer { translationY = dragY.value }
+            .draggable(drag, Orientation.Vertical, onDragStopped = { velocity -> sheet.settle(velocity, flingSpeed) })
+            // After draggable: pointer positions must not move with the screen, or drags stall.
+            .graphicsLayer {
+                val open = sheet.progress.value
+                translationY = (1f - open) * sheet.travel
+                // Rounded like the mini player while it's being dragged, square once open.
+                shape = RoundedCornerShape(topStart = sheetCorner * (1f - open), topEnd = sheetCorner * (1f - open))
+                clip = open < 1f
+            }
             .background(MaterialTheme.colorScheme.surface)
             .focusProperties { onExit = { if (trapFocus) cancelFocusChange() } }
             .focusGroup(),
     ) {
-        // Blurred artwork wash behind everything.
-        AsyncImage(
-            model = track.thumbnailUrl, contentDescription = null, contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize().blur(60.dp).alpha(0.45f),
-        )
-        Box(
-            Modifier.fillMaxSize().background(
-                Brush.verticalGradient(
-                    listOf(MaterialTheme.colorScheme.primary.copy(alpha = 0.30f), Color.Transparent, MaterialTheme.colorScheme.surface),
+        // Not inside a Surface, so text and icons would otherwise default to black (unreadable in dark mode).
+        CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurface) {
+            // Blurred artwork behind everything, washed with the artwork's own color. In dark mode a
+            // scrim at the top and a fade into the surface below keep the bars and text readable.
+            AsyncImage(
+                model = track.thumbnailUrl, contentDescription = null, contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize().blur(60.dp).alpha(if (dark) 0.55f else 0.45f),
+            )
+            Box(
+                Modifier.fillMaxSize().background(
+                    Brush.verticalGradient(
+                        *if (dark) {
+                            listOf(0f to Color.Black.copy(alpha = 0.35f), 0.25f to wash.copy(alpha = 0.35f), 0.6f to MaterialTheme.colorScheme.surface.copy(alpha = 0.75f), 1f to MaterialTheme.colorScheme.surface)
+                        } else {
+                            listOf(0f to wash.copy(alpha = 0.30f), 0.5f to Color.Transparent, 1f to MaterialTheme.colorScheme.surface)
+                        }.toTypedArray(),
+                    ),
                 ),
-            ),
-        )
+            )
 
-        Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(horizontal = 24.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onClose) { Icon(Icons.Default.KeyboardArrowDown, "Close player") }
-                Text("Now playing", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                CastButton(container.castAvailable)
-                IconButton(onClick = { menu.open(track) }) { Icon(Icons.Default.MoreVert, "More") }
-            }
-            // Landscape (tablets, TV): artwork beside the controls instead of above them.
-            val landscape = LocalConfiguration.current.let { it.screenWidthDp > it.screenHeightDp }
-            val artwork = @Composable { modifier: Modifier ->
-                Box(modifier.aspectRatio(1f).clip(RoundedCornerShape(20.dp))) {
-                    Artwork(track.thumbnailUrl, 1000.dp, Modifier.fillMaxSize(), corner = 20.dp)
-                }
-            }
-            val controls = @Composable {
+            Column(
+                Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(horizontal = 24.dp)
+                // Fades in once the mini player shown at the top has faded out, so the two never overlap.
+                .graphicsLayer { alpha = ((sheet.progress.value - 0.25f) / 0.3f).coerceIn(0f, 1f) },
+            ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(track.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.basicMarquee())
-                        Text(track.artist, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-                    }
-                    IconButton(onClick = { scope.launch { container.library.toggleFavorite(track) } }) {
-                        Icon(
-                            if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                            if (isFavorite) "Remove from favorites" else "Add to favorites",
-                            tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                        )
+                    IconButton(onClick = onClose) { Icon(Icons.Default.KeyboardArrowDown, "Close player") }
+                    Text("Now playing", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    CastButton(container.castAvailable)
+                    IconButton(onClick = { menu.open(track) }) { Icon(Icons.Default.MoreVert, "More") }
+                }
+                // Landscape (tablets, TV): artwork beside the controls instead of above them.
+                val landscape = LocalConfiguration.current.let { it.screenWidthDp > it.screenHeightDp }
+                val artwork = @Composable { modifier: Modifier ->
+                    Box(modifier.aspectRatio(1f).clip(RoundedCornerShape(20.dp))) {
+                        Artwork(track.thumbnailUrl, 1000.dp, Modifier.fillMaxSize(), corner = 20.dp)
                     }
                 }
-                Spacer(Modifier.height(12.dp))
-                val duration = state.durationMs.coerceAtLeast(1)
-                Slider(
-                    value = scrubbing ?: (state.positionMs.toFloat() / duration).coerceIn(0f, 1f),
-                    onValueChange = { scrubbing = it },
-                    onValueChangeFinished = { scrubbing?.let { player.seekTo((it * duration).toLong()) }; scrubbing = null },
-                )
-                Row {
-                    val shown = scrubbing?.let { (it * duration).toLong() } ?: state.positionMs
-                    Text(formatDuration(shown / 1000).ifEmpty { "0:00" }, style = MaterialTheme.typography.labelMedium)
+                val controls = @Composable {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(track.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.basicMarquee())
+                            Text(track.artist, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                        }
+                        IconButton(onClick = { scope.launch { container.library.toggleFavorite(track) } }) {
+                            Icon(
+                                if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                if (isFavorite) "Remove from favorites" else "Add to favorites",
+                                tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    val duration = state.durationMs.coerceAtLeast(1)
+                    Slider(
+                        value = scrubbing ?: (state.positionMs.toFloat() / duration).coerceIn(0f, 1f),
+                        onValueChange = { scrubbing = it },
+                        onValueChangeFinished = { scrubbing?.let { player.seekTo((it * duration).toLong()) }; scrubbing = null },
+                    )
+                    Row {
+                        val shown = scrubbing?.let { (it * duration).toLong() } ?: state.positionMs
+                        Text(formatDuration(shown / 1000).ifEmpty { "0:00" }, style = MaterialTheme.typography.labelMedium)
+                        Spacer(Modifier.weight(1f))
+                        Text(formatDuration(state.durationMs / 1000), style = MaterialTheme.typography.labelMedium)
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = player::toggleShuffle) {
+                            Icon(Icons.Default.Shuffle, "Shuffle", tint = if (state.shuffle) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        IconButton(onClick = player::previous, modifier = Modifier.size(56.dp)) { Icon(Icons.Default.SkipPrevious, "Previous", Modifier.size(36.dp)) }
+                        PlayPauseButton(state, player::togglePlay, small = false, modifier = Modifier.focusRequester(playFocus))
+                        IconButton(onClick = player::next, modifier = Modifier.size(56.dp)) { Icon(Icons.Default.SkipNext, "Next", Modifier.size(36.dp)) }
+                        IconButton(onClick = player::cycleRepeat) {
+                            Icon(
+                                if (state.repeatMode == Player.REPEAT_MODE_ONE) Icons.Default.RepeatOne else Icons.Default.Repeat,
+                                "Repeat",
+                                tint = if (state.repeatMode != Player.REPEAT_MODE_OFF) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(16.dp))
+                    Row(Modifier.fillMaxWidth().padding(bottom = 16.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+                        IconButton(onClick = { showSleep = true }) {
+                            Icon(if (sleep == SleepTimer.State.Off) Icons.Default.BedtimeOff else Icons.Default.Bedtime, "Sleep timer",
+                                tint = if (sleep == SleepTimer.State.Off) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary)
+                        }
+                        IconButton(onClick = { addToPlaylist = true }) { Icon(Icons.AutoMirrored.Filled.PlaylistAdd, "Add to playlist") }
+                        IconButton(onClick = { showQueue = true }) { Icon(Icons.AutoMirrored.Filled.QueueMusic, "Queue") }
+                    }
+                }
+                if (landscape) {
+                    Row(
+                        Modifier.weight(1f).fillMaxWidth().padding(vertical = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(40.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        artwork(Modifier.fillMaxHeight())
+                        // Short landscape phones can't fit every control; let them scroll.
+                        Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) { controls() }
+                    }
+                } else {
                     Spacer(Modifier.weight(1f))
-                    Text(formatDuration(state.durationMs / 1000), style = MaterialTheme.typography.labelMedium)
-                }
-                Spacer(Modifier.height(12.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = player::toggleShuffle) {
-                        Icon(Icons.Default.Shuffle, "Shuffle", tint = if (state.shuffle) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    IconButton(onClick = player::previous, modifier = Modifier.size(56.dp)) { Icon(Icons.Default.SkipPrevious, "Previous", Modifier.size(36.dp)) }
-                    PlayPauseButton(state, player::togglePlay, small = false, modifier = Modifier.focusRequester(playFocus))
-                    IconButton(onClick = player::next, modifier = Modifier.size(56.dp)) { Icon(Icons.Default.SkipNext, "Next", Modifier.size(36.dp)) }
-                    IconButton(onClick = player::cycleRepeat) {
-                        Icon(
-                            if (state.repeatMode == Player.REPEAT_MODE_ONE) Icons.Default.RepeatOne else Icons.Default.Repeat,
-                            "Repeat",
-                            tint = if (state.repeatMode != Player.REPEAT_MODE_OFF) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-                Spacer(Modifier.height(16.dp))
-                Row(Modifier.fillMaxWidth().padding(bottom = 16.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    IconButton(onClick = { showSleep = true }) {
-                        Icon(if (sleep == SleepTimer.State.Off) Icons.Default.BedtimeOff else Icons.Default.Bedtime, "Sleep timer",
-                            tint = if (sleep == SleepTimer.State.Off) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary)
-                    }
-                    IconButton(onClick = { addToPlaylist = true }) { Icon(Icons.AutoMirrored.Filled.PlaylistAdd, "Add to playlist") }
-                    IconButton(onClick = { showQueue = true }) { Icon(Icons.AutoMirrored.Filled.QueueMusic, "Queue") }
+                    artwork(Modifier.fillMaxWidth())
+                    Spacer(Modifier.weight(1f))
+                    controls()
                 }
             }
-            if (landscape) {
-                Row(
-                    Modifier.weight(1f).fillMaxWidth().padding(vertical = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(40.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    artwork(Modifier.fillMaxHeight())
-                    // Short landscape phones can't fit every control; let them scroll.
-                    Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) { controls() }
-                }
-            } else {
-                Spacer(Modifier.weight(1f))
-                artwork(Modifier.fillMaxWidth())
-                Spacer(Modifier.weight(1f))
-                controls()
+            if (nearlyCollapsed) {
+                MiniPlayerCard(
+                    state, player::togglePlay, player::next, accent,
+                    Modifier.graphicsLayer { alpha = 1f - ((sheet.progress.value - 0.1f) / 0.15f).coerceIn(0f, 1f) },
+                )
             }
         }
     }
