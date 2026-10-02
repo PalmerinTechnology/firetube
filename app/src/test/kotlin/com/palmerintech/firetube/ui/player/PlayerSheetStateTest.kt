@@ -1,6 +1,6 @@
 package com.palmerintech.firetube.ui.player
 
-import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.TestScope
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -27,22 +27,22 @@ class PlayerSheetStateTest {
     }
 
     @Test
-    fun draggingFollowsTheFingerAndStopsAtTheEnds() = runTest {
-        val sheet = PlayerSheetState().apply { travel = 1000f }
+    fun draggingFollowsTheFingerAndStopsAtTheEnds() {
+        val sheet = PlayerSheetState(initiallyExpanded = false, TestScope()).apply { travel = 1000f }
         sheet.dragBy(-250f) // finger up a quarter of the way
-        assertEquals(0.25f, sheet.progress.value, 0.001f)
+        assertEquals(0.25f, sheet.progress, 0.001f)
         assertTrue(sheet.isVisible)
         sheet.dragBy(-5000f)
-        assertEquals(1f, sheet.progress.value, 0.001f)
+        assertEquals(1f, sheet.progress, 0.001f)
         sheet.dragBy(9000f)
-        assertEquals(0f, sheet.progress.value, 0.001f)
+        assertEquals(0f, sheet.progress, 0.001f)
         assertFalse(sheet.isVisible)
     }
 
     @Test
     fun startsOpenWhenRestoredOpen() {
-        val sheet = PlayerSheetState(initiallyExpanded = true)
-        assertEquals(1f, sheet.progress.value, 0.001f)
+        val sheet = PlayerSheetState(initiallyExpanded = true, TestScope())
+        assertEquals(1f, sheet.progress, 0.001f)
         assertTrue(sheet.expanded)
     }
 }

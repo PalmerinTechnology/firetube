@@ -1,24 +1,39 @@
 package com.palmerintech.firetube.ui.player
 
-import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 
 /**
  * How far Now Playing is pulled up out of the mini player. Both the mini player and Now Playing
  * drive the same [progress], so the screen follows the finger in either direction and settles
  * open or closed on release.
+ *
+ * Drags apply synchronously and the settle animation runs in [scope], owned here. Drag deltas
+ * used to be launched as separate coroutines; on a device the last few of a quick release could
+ * run after the settle animation had started, cancel it, and leave the sheet stuck part-way.
  */
 @Stable
-class PlayerSheetState(initiallyExpanded: Boolean = false) {
+class PlayerSheetState(initiallyExpanded: Boolean, private val scope: CoroutineScope) {
     /** 0 = collapsed into the mini player, 1 = Now Playing fills the screen. */
-    val progress = Animatable(if (initiallyExpanded) 1f else 0f)
+    var progress by mutableFloatStateOf(if (initiallyExpanded) 1f else 0f)
+        private set
 
     /** Where the sheet is (or is heading): open or closed. Flips as soon as a settle starts. */
     var expanded by mutableStateOf(initiallyExpanded)
@@ -31,28 +46,48 @@ class PlayerSheetState(initiallyExpanded: Boolean = false) {
      * Now Playing needs to be on screen: open, opening, or part-way through a drag. Derived, so
      * readers recompose only when it flips, not on every frame of a drag.
      */
-    val isVisible: Boolean by derivedStateOf { expanded || progress.value > 0f }
+    val isVisible: Boolean by derivedStateOf { expanded || progress > 0f }
 
-    /**
-     * Follows a vertical drag; [deltaPx] is negative when the finger moves up. Callers launch this
-     * and [settle] from the main thread, whose single dispatcher keeps them in order.
-     */
-    suspend fun dragBy(deltaPx: Float) {
-        progress.snapTo((progress.value - deltaPx / travel.coerceAtLeast(1f)).coerceIn(0f, 1f))
+    private var animation: Job? = null
+
+    /** Follows a vertical drag; [deltaPx] is negative when the finger moves up. Grabbing it mid-settle stops the settle. */
+    fun dragBy(deltaPx: Float) {
+        animation?.cancel()
+        progress = (progress - deltaPx / travel.coerceAtLeast(1f)).coerceIn(0f, 1f)
     }
 
     /** Finishes a drag that let go with [velocityPx] (px/s, negative = upward). */
-    suspend fun settle(velocityPx: Float, flingPx: Float) =
-        animateTo(settleTarget(progress.value, velocityPx, flingPx, expanded))
+    fun settle(velocityPx: Float, flingPx: Float) =
+        animateTo(settleTarget(progress, velocityPx, flingPx, expanded), velocityPx)
 
-    suspend fun expand() = animateTo(true)
+    fun expand() = animateTo(true)
 
-    suspend fun collapse() = animateTo(false)
+    fun collapse() = animateTo(false)
 
-    private suspend fun animateTo(open: Boolean) {
+    private fun animateTo(open: Boolean, velocityPx: Float = 0f) {
         expanded = open
-        progress.animateTo(if (open) 1f else 0f, spring(stiffness = Spring.StiffnessMediumLow))
+        animation?.cancel()
+        animation = scope.launch {
+            // Carry the finger's speed into the spring (progress grows as the finger moves up).
+            val velocity = -velocityPx / travel.coerceAtLeast(1f)
+            animate(progress, if (open) 1f else 0f, velocity, spring(stiffness = Spring.StiffnessMediumLow)) { value, _ ->
+                progress = value
+            }
+        }
     }
+}
+
+@Composable
+fun rememberPlayerSheetState(initiallyExpanded: Boolean = false): PlayerSheetState {
+    val scope = rememberCoroutineScope()
+    return remember { PlayerSheetState(initiallyExpanded, scope) }
+}
+
+/** Lets a vertical drag on this element move the sheet, settling on release. */
+@Composable
+fun Modifier.playerSheetDrag(sheet: PlayerSheetState, flingPx: Float): Modifier {
+    val drag = rememberDraggableState { delta -> sheet.dragBy(delta) }
+    return draggable(drag, Orientation.Vertical, onDragStopped = { velocity -> sheet.settle(velocity, flingPx) })
 }
 
 /**

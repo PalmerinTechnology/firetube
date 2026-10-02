@@ -20,8 +20,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.draggable
-import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -318,10 +316,9 @@ fun NowPlayingScreen(
     // Drag the whole screen down (or back up) and it follows the finger; see PlayerSheetState.
     val flingSpeed = with(LocalDensity.current) { 1000.dp.toPx() }
     val sheetCorner = with(LocalDensity.current) { 20.dp.toPx() }
-    val drag = rememberDraggableState { delta -> scope.launch { sheet.dragBy(delta) } }
     // While nearly collapsed, the top of the screen shows the mini player it's coming out of; the
     // controls only exist once they start fading in, so nothing invisible can be tapped.
-    val nearlyCollapsed by remember { derivedStateOf { sheet.progress.value < CONTROLS_FROM } }
+    val nearlyCollapsed by remember { derivedStateOf { sheet.progress < CONTROLS_FROM } }
     val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val wash = accent ?: MaterialTheme.colorScheme.primary
 
@@ -330,10 +327,10 @@ fun NowPlayingScreen(
     LaunchedEffect(trapFocus, nearlyCollapsed) { if (trapFocus && !nearlyCollapsed) runCatching { playFocus.requestFocus() } }
     Box(
         Modifier.fillMaxSize()
-            .draggable(drag, Orientation.Vertical, onDragStopped = { velocity -> sheet.settle(velocity, flingSpeed) })
+            .playerSheetDrag(sheet, flingSpeed)
             // After draggable: pointer positions must not move with the screen, or drags stall.
             .graphicsLayer {
-                val open = sheet.progress.value
+                val open = sheet.progress
                 translationY = (1f - open) * sheet.travel
                 // Rounded like the mini player while it's being dragged, square once open.
                 shape = RoundedCornerShape(topStart = sheetCorner * (1f - open), topEnd = sheetCorner * (1f - open))
@@ -366,7 +363,7 @@ fun NowPlayingScreen(
             if (!nearlyCollapsed) Column(
                 Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(horizontal = 24.dp)
                     // Fades in once the mini player shown at the top has faded out, so the two never overlap.
-                    .graphicsLayer { alpha = ((sheet.progress.value - CONTROLS_FROM) / 0.3f).coerceIn(0f, 1f) },
+                    .graphicsLayer { alpha = ((sheet.progress - CONTROLS_FROM) / 0.3f).coerceIn(0f, 1f) },
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onClose) { Icon(Icons.Default.KeyboardArrowDown, "Close player") }
@@ -454,7 +451,7 @@ fun NowPlayingScreen(
             if (nearlyCollapsed) {
                 MiniPlayerCard(
                     state, player::togglePlay, player::next, accent,
-                    Modifier.graphicsLayer { alpha = 1f - ((sheet.progress.value - 0.1f) / (CONTROLS_FROM - 0.1f)).coerceIn(0f, 1f) },
+                    Modifier.graphicsLayer { alpha = 1f - ((sheet.progress - 0.1f) / (CONTROLS_FROM - 0.1f)).coerceIn(0f, 1f) },
                 )
             }
         }
