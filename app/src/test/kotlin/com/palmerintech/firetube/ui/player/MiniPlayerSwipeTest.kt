@@ -3,7 +3,6 @@ package com.palmerintech.firetube.ui.player
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -22,7 +21,6 @@ import androidx.compose.ui.test.swipe
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.palmerintech.firetube.extractor.Track
 import com.palmerintech.firetube.player.PlayerUiState
-import kotlinx.coroutines.launch
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -40,22 +38,22 @@ class MiniPlayerSwipeTest {
     private val track = Track("abc123", "A song", "An artist", 200, null)
     private var next = 0
     private var previous = 0
-    private val sheet = PlayerSheetState()
+    private lateinit var sheet: PlayerSheetState
 
     /** The mini player at the bottom of a screen, driving [sheet] the way FireTubeRoot does. */
     private fun show(hasNext: Boolean = true, hasPrevious: Boolean = true) = compose.setContent {
-        val scope = rememberCoroutineScope()
+        sheet = rememberPlayerSheetState()
         val fling = with(LocalDensity.current) { 800.dp.toPx() } // as in FireTubeRoot
         MaterialTheme {
             Box(Modifier.fillMaxSize()) {
                 MiniPlayer(
                     PlayerUiState(current = track, hasNext = hasNext, hasPrevious = hasPrevious),
                     onTogglePlay = {}, onNext = { next++ }, onPrevious = { previous++ },
-                    onOpen = { scope.launch { sheet.expand() } },
+                    onOpen = sheet::expand,
                     modifier = Modifier.testTag(TAG).align(Alignment.BottomCenter)
                         .onGloballyPositioned { sheet.travel = it.positionInRoot().y },
-                    onDrag = { scope.launch { sheet.dragBy(it) } },
-                    onDragEnd = { scope.launch { sheet.settle(it, fling) } },
+                    onDrag = sheet::dragBy,
+                    onDragEnd = { sheet.settle(it, fling) },
                 )
             }
         }
@@ -107,7 +105,7 @@ class MiniPlayerSwipeTest {
     fun nowPlayingFollowsTheFingerWhileDragging() {
         show()
         slowDrag(-0.4f, hold = true)
-        assertEquals(0.4f, sheet.progress.value, 0.05f)
+        assertEquals(0.4f, sheet.progress, 0.05f)
         swipe { up() }
     }
 
@@ -116,7 +114,7 @@ class MiniPlayerSwipeTest {
         show()
         slowDrag(-0.4f)
         assertTrue(sheet.expanded)
-        assertEquals(1f, sheet.progress.value, 0.001f)
+        assertEquals(1f, sheet.progress, 0.001f)
     }
 
     @Test
@@ -124,7 +122,7 @@ class MiniPlayerSwipeTest {
         show()
         slowDrag(-0.1f)
         assertFalse(sheet.expanded)
-        assertEquals(0f, sheet.progress.value, 0.001f)
+        assertEquals(0f, sheet.progress, 0.001f)
     }
 
     @Test
@@ -141,7 +139,7 @@ class MiniPlayerSwipeTest {
         compose.onNodeWithTag(TAG).performClick()
         compose.waitForIdle()
         assertTrue(sheet.expanded)
-        assertEquals(1f, sheet.progress.value, 0.001f)
+        assertEquals(1f, sheet.progress, 0.001f)
     }
 
     private companion object {

@@ -37,7 +37,7 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
-import com.palmerintech.firetube.ui.player.PlayerSheetState
+import com.palmerintech.firetube.ui.player.rememberPlayerSheetState
 import com.palmerintech.firetube.ui.player.rememberArtworkColor
 import com.palmerintech.firetube.ui.components.FlameIcon
 import com.palmerintech.firetube.ui.components.focusRing
@@ -114,7 +114,7 @@ fun FireTubeRoot(container: AppContainer, pendingLink: String?, onLinkHandled: (
     val playerState by container.player.state.collectAsState()
     // Now Playing's position; survives rotation through playerOpen.
     var playerOpen by rememberSaveable { mutableStateOf(false) }
-    val sheet = remember { PlayerSheetState(initiallyExpanded = playerOpen) }
+    val sheet = rememberPlayerSheetState(initiallyExpanded = playerOpen)
     LaunchedEffect(sheet.expanded) { playerOpen = sheet.expanded }
     val backStack by nav.currentBackStackEntryAsState()
     val showMessage: (String) -> Unit = { msg -> scope.launch { snackbar.showSnackbar(msg) } }
@@ -140,7 +140,7 @@ fun FireTubeRoot(container: AppContainer, pendingLink: String?, onLinkHandled: (
                     track == null -> showMessage("Couldn't open that video")
                     else -> {
                         container.player.play(listOf(track))
-                        scope.launch { sheet.expand() }
+                        sheet.expand()
                     }
                 }
             }
@@ -165,7 +165,8 @@ fun FireTubeRoot(container: AppContainer, pendingLink: String?, onLinkHandled: (
     val cardInset = with(LocalDensity.current) { 4.dp.toPx() }
     // The queue ran out while Now Playing was open: close it, or it would pop back open by itself
     // with the next song and keep D-pad focus out of the app meanwhile.
-    LaunchedEffect(playerState.current == null) { if (playerState.current == null && sheet.expanded) sheet.collapse() }
+    // Also covers a drag up from the mini player cut short by the mini player disappearing.
+    LaunchedEffect(playerState.current == null) { if (playerState.current == null && sheet.isVisible) sheet.collapse() }
     CompositionLocalProvider(LocalTrackMenu provides menu, LocalNowPlaying provides nowPlaying) {
         Box(Modifier.fillMaxSize()) {
             val wide = LocalConfiguration.current.screenWidthDp >= WIDE_SCREEN_DP
@@ -207,12 +208,12 @@ fun FireTubeRoot(container: AppContainer, pendingLink: String?, onLinkHandled: (
                     Column(if (wide) Modifier.windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom)) else Modifier) {
                         MiniPlayer(
                             playerState, container.player::togglePlay, container.player::next, container.player::previousTrack,
-                            onOpen = { scope.launch { sheet.expand() } },
+                            onOpen = { sheet.expand() },
                             modifier = Modifier.focusRequester(miniPlayerFocus)
                                 // Now Playing's top edge starts at the mini player's top.
                                 .onGloballyPositioned { sheet.travel = it.positionInRoot().y - cardInset },
-                            onDrag = { delta -> scope.launch { sheet.dragBy(delta) } },
-                            onDragEnd = { velocity -> scope.launch { sheet.settle(velocity, flingSpeed) } },
+                            onDrag = sheet::dragBy,
+                            onDragEnd = { velocity -> sheet.settle(velocity, flingSpeed) },
                             accent = accent,
                         )
                         if (!wide) {
@@ -274,8 +275,8 @@ fun FireTubeRoot(container: AppContainer, pendingLink: String?, onLinkHandled: (
             }
             if (playerState.current != null && sheet.isVisible) {
                 // Dims the app behind Now Playing as it comes up.
-                Box(Modifier.fillMaxSize().drawBehind { drawRect(Color.Black, alpha = 0.5f * sheet.progress.value) })
-                NowPlayingScreen(container, sheet, onClose = { scope.launch { sheet.collapse() } }, accent = accent)
+                Box(Modifier.fillMaxSize().drawBehind { drawRect(Color.Black, alpha = 0.5f * sheet.progress) })
+                NowPlayingScreen(container, sheet, onClose = sheet::collapse, accent = accent)
             }
         }
         TrackMenuHost(container, menu, showMessage)
