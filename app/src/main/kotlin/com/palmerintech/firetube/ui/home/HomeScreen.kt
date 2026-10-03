@@ -31,7 +31,6 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.height
 import androidx.compose.ui.graphics.Color
-import com.palmerintech.firetube.ui.components.FlameIcon
 import com.palmerintech.firetube.ui.theme.LocalFireBrushes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -56,7 +55,9 @@ import com.palmerintech.firetube.ui.components.LocalTrackMenu
 import com.palmerintech.firetube.ui.components.SectionHeader
 import com.palmerintech.firetube.ui.components.TrackCard
 import com.palmerintech.firetube.ui.components.TrackRow
-import java.util.Calendar
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
+import com.palmerintech.firetube.R
 
 @UnstableApi
 @OptIn(ExperimentalMaterial3Api::class)
@@ -86,10 +87,10 @@ fun HomeScreen(
         TopAppBar(
             colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
             title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    FlameIcon(size = 26.dp)
-                    Text(greeting(), fontWeight = FontWeight.Bold)
-                }
+                Image(
+                    painterResource(R.drawable.wordmark), contentDescription = "FireTube",
+                    modifier = Modifier.height(32.dp),
+                )
             },
             actions = {
                 CastButton(container.castAvailable)
@@ -184,10 +185,4 @@ fun HomeScreen(
         }
     }
     }
-}
-
-private fun greeting(): String = when (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) {
-    in 5..11 -> "Good morning"
-    in 12..16 -> "Good afternoon"
-    else -> "Good evening"
 }

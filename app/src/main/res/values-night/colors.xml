@@ -1,3 +1,4 @@
 <resources>
     <color name="splash_background">#121212</color>
+    <color name="wordmark_text">#F7EDEB</color>
 </resources>

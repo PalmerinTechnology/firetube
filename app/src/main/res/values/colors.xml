@@ -1,4 +1,8 @@
 <resources>
     <color name="brand_red">#F44336</color>
     <color name="splash_background">#FFFFFF</color>
+    <!-- Wordmark (drawable/wordmark.xml): flame gradient ends and the letters. -->
+    <color name="flame_start">#FF7043</color>
+    <color name="flame_end">#B71C1C</color>
+    <color name="wordmark_text">#231918</color>
 </resources>
