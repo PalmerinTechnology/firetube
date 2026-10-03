@@ -7,6 +7,7 @@ import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -18,6 +19,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -40,7 +42,17 @@ class PlayerSheetState(initiallyExpanded: Boolean, private val scope: CoroutineS
         private set
 
     /** Pixels Now Playing's top edge travels between collapsed (the mini player's top) and expanded. */
-    var travel by mutableFloatStateOf(1f)
+    var travel by mutableFloatStateOf(0f)
+
+    /** The screen's height; stands in for [travel] until the mini player has been laid out. */
+    var fallbackTravel by mutableFloatStateOf(0f)
+
+    /** The distance a drag or settle actually uses. */
+    val distance: Float get() = (if (travel > 1f) travel else fallbackTravel).coerceAtLeast(1f)
+
+    /** The mini player card's left edge and width in root pixels, so Now Playing's copy of it lines up. */
+    var miniLeft by mutableFloatStateOf(0f)
+    var miniWidth by mutableFloatStateOf(0f)
 
     /**
      * Now Playing needs to be on screen: open, opening, or part-way through a drag. Derived, so
@@ -53,7 +65,7 @@ class PlayerSheetState(initiallyExpanded: Boolean, private val scope: CoroutineS
     /** Follows a vertical drag; [deltaPx] is negative when the finger moves up. Grabbing it mid-settle stops the settle. */
     fun dragBy(deltaPx: Float) {
         animation?.cancel()
-        progress = (progress - deltaPx / travel.coerceAtLeast(1f)).coerceIn(0f, 1f)
+        progress = (progress - deltaPx / distance).coerceIn(0f, 1f)
     }
 
     /** Finishes a drag that let go with [velocityPx] (px/s, negative = upward). */
@@ -71,7 +83,7 @@ class PlayerSheetState(initiallyExpanded: Boolean, private val scope: CoroutineS
             // Carry the finger's speed into the spring (progress grows as the finger moves up). A
             // fast flick makes the spring overshoot; clamp it, since nothing past fully open or
             // closed exists (and a negative corner radius would crash Now Playing).
-            val velocity = -velocityPx / travel.coerceAtLeast(1f)
+            val velocity = -velocityPx / distance
             animate(progress, if (open) 1f else 0f, velocity, spring(stiffness = Spring.StiffnessMediumLow)) { value, _ ->
                 progress = value.coerceIn(0f, 1f)
             }
@@ -83,6 +95,31 @@ class PlayerSheetState(initiallyExpanded: Boolean, private val scope: CoroutineS
 fun rememberPlayerSheetState(initiallyExpanded: Boolean = false): PlayerSheetState {
     val scope = rememberCoroutineScope()
     return remember { PlayerSheetState(initiallyExpanded, scope) }
+}
+
+/**
+ * Closes the sheet when there's no song to show, or it would pop back open by itself with the next
+ * song and keep D-pad focus out of the app meanwhile. If the queue ran out (or a drag up from the
+ * mini player was cut short by it disappearing) it closes at once. If the app was restored with
+ * Now Playing open, the service restores its queue asynchronously, so it waits [graceMs] after
+ * connecting before deciding there's nothing to show, or [connectTimeoutMs] if the player never
+ * connects (Now Playing isn't drawn without a song, so it would otherwise block D-pad focus).
+ */
+@Composable
+fun CollapseWhenNoSong(
+    sheet: PlayerSheetState,
+    hasSong: Boolean,
+    connected: Boolean,
+    graceMs: Long = 3_000,
+    connectTimeoutMs: Long = 10_000,
+) {
+    var hadSong by remember { mutableStateOf(false) }
+    LaunchedEffect(hasSong, connected) {
+        if (hasSong) { hadSong = true; return@LaunchedEffect }
+        if (!sheet.isVisible) return@LaunchedEffect
+        if (!hadSong) delay(if (connected) graceMs else connectTimeoutMs)
+        sheet.collapse()
+    }
 }
 
 /** Lets a vertical drag on this element move the sheet, settling on release. */
