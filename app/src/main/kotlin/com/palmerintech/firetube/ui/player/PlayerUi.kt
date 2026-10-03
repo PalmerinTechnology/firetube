@@ -39,6 +39,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.roundToInt
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -331,7 +334,7 @@ fun NowPlayingScreen(
             // After draggable: pointer positions must not move with the screen, or drags stall.
             .graphicsLayer {
                 val open = sheet.progress
-                translationY = (1f - open) * sheet.travel
+                translationY = (1f - open) * sheet.distance
                 // Rounded like the mini player while it's being dragged, square once open.
                 shape = RoundedCornerShape(topStart = sheetCorner * (1f - open), topEnd = sheetCorner * (1f - open))
                 clip = open < 1f
@@ -449,10 +452,22 @@ fun NowPlayingScreen(
                 }
             }
             if (nearlyCollapsed) {
-                MiniPlayerCard(
-                    state, player::togglePlay, player::next, accent,
-                    Modifier.graphicsLayer { alpha = 1f - ((sheet.progress - 0.1f) / (CONTROLS_FROM - 0.1f)).coerceIn(0f, 1f) },
-                )
+                // Same place and width as the real mini player, which on wide screens sits beside the
+                // navigation rail rather than spanning the screen. The card adds 8dp either side.
+                val density = LocalDensity.current
+                val cardPad = with(density) { 8.dp.toPx() }
+                val placed = if (sheet.miniWidth > 0f) {
+                    Modifier.offset { IntOffset((sheet.miniLeft - cardPad).roundToInt(), 0) }
+                        .width(with(density) { (sheet.miniWidth + 2 * cardPad).toDp() })
+                } else {
+                    Modifier.fillMaxWidth()
+                }
+                Box(placed) {
+                    MiniPlayerCard(
+                        state, player::togglePlay, player::next, accent,
+                        Modifier.graphicsLayer { alpha = 1f - ((sheet.progress - 0.1f) / (CONTROLS_FROM - 0.1f)).coerceIn(0f, 1f) },
+                    )
+                }
             }
         }
     }

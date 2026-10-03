@@ -40,6 +40,16 @@ class PlayerSheetStateTest {
     }
 
     @Test
+    fun usesTheScreenHeightUntilTheMiniPlayerIsMeasured() {
+        val sheet = PlayerSheetState(initiallyExpanded = false, TestScope()).apply { fallbackTravel = 2000f }
+        assertEquals(2000f, sheet.distance, 0.001f)
+        sheet.dragBy(-500f)
+        assertEquals(0.25f, sheet.progress, 0.001f)
+        sheet.travel = 1500f // measured
+        assertEquals(1500f, sheet.distance, 0.001f)
+    }
+
+    @Test
     fun startsOpenWhenRestoredOpen() {
         val sheet = PlayerSheetState(initiallyExpanded = true, TestScope())
         assertEquals(1f, sheet.progress, 0.001f)

@@ -32,6 +32,8 @@ data class PlayerUiState(
     val repeatMode: Int = Player.REPEAT_MODE_OFF,
     val hasNext: Boolean = false,
     val hasPrevious: Boolean = false,
+    /** Connected to the playback service; until then [current] is null even if a queue will be restored. */
+    val connected: Boolean = false,
 )
 
 /**
@@ -155,6 +157,7 @@ class PlayerConnection(private val context: Context, private val scope: Coroutin
             repeatMode = p.repeatMode,
             hasNext = p.hasNextMediaItem(),
             hasPrevious = p.hasPreviousMediaItem(),
+            connected = true,
         )
         if (p.isPlaying) startTicker(p) else ticker?.cancel()
     }
