@@ -31,7 +31,6 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.height
 import androidx.compose.ui.graphics.Color
-import com.palmerintech.firetube.ui.components.FlameIcon
 import com.palmerintech.firetube.ui.theme.LocalFireBrushes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -56,7 +55,14 @@ import com.palmerintech.firetube.ui.components.LocalTrackMenu
 import com.palmerintech.firetube.ui.components.SectionHeader
 import com.palmerintech.firetube.ui.components.TrackCard
 import com.palmerintech.firetube.ui.components.TrackRow
-import java.util.Calendar
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import com.palmerintech.firetube.R
 
 @UnstableApi
 @OptIn(ExperimentalMaterial3Api::class)
@@ -86,9 +92,15 @@ fun HomeScreen(
         TopAppBar(
             colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
             title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    FlameIcon(size = 26.dp)
-                    Text(greeting(), fontWeight = FontWeight.Bold)
+                // The flame keeps its gradient; the letters take the theme's text color, which
+                // follows FireTube's own Light/Dark setting (a color resource would follow the system).
+                val name = stringResource(R.string.app_name)
+                Box(Modifier.height(32.dp).semantics { heading(); contentDescription = name }) {
+                    Image(painterResource(R.drawable.wordmark_flame), contentDescription = null)
+                    Image(
+                        painterResource(R.drawable.wordmark_letters), contentDescription = null,
+                        colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSurface),
+                    )
                 }
             },
             actions = {
@@ -184,10 +196,4 @@ fun HomeScreen(
         }
     }
     }
-}
-
-private fun greeting(): String = when (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) {
-    in 5..11 -> "Good morning"
-    in 12..16 -> "Good afternoon"
-    else -> "Good evening"
 }
