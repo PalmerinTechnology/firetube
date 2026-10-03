@@ -24,10 +24,8 @@ from fontTools.ttLib import TTFont
 
 FONT_SHA256 = "983676516167748b74de6f4771fb384c664fd913acb8b471122ecacf5da5ea6c"
 TEXT = "FireTube"
-HEIGHT = 64.0  # viewport height; the drawable is HEIGHT dp tall at scale 1
 CAP = 34.0  # cap height of the letters, in viewport units
-BASELINE = 47.0  # y of the text baseline
-GAP = 6.0  # space between flame and text
+GAP = 10.0  # space between flame and text
 
 # The launcher foreground's flame (drawable/ic_launcher_foreground.xml), in its 108-unit viewport.
 FLAME = (
@@ -36,8 +34,11 @@ FLAME = (
     "M54.5,63 A9,9 0 1,0 54.5,81 A9,9 0 1,0 54.5,63 Z"
 )
 FLAME_BOX = (39.5, 27.0, 74.0, 83.0)  # x0, y0, x1, y1
-FLAME_HEIGHT = 57.0
+FLAME_HEIGHT = 48.0
 FLAME_TOP = 1.0
+# The flame and the letters share a bottom line: the flame's base sits on the text baseline.
+BASELINE = FLAME_TOP + FLAME_HEIGHT
+HEIGHT = BASELINE + 1.0  # viewport height; nothing descends below the baseline in "FireTube"
 
 
 def text_path(font_path: str) -> tuple[str, float]:
