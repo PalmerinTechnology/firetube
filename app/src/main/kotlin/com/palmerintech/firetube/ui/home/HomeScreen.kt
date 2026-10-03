@@ -95,7 +95,7 @@ fun HomeScreen(
                 // The flame keeps its gradient; the letters take the theme's text color, which
                 // follows FireTube's own Light/Dark setting (a color resource would follow the system).
                 val name = stringResource(R.string.app_name)
-                Box(Modifier.height(32.dp).semantics { heading(); contentDescription = name }) {
+                Box(Modifier.height(25.dp).semantics { heading(); contentDescription = name }) {
                     Image(painterResource(R.drawable.wordmark_flame), contentDescription = null)
                     Image(
                         painterResource(R.drawable.wordmark_letters), contentDescription = null,
