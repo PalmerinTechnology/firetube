@@ -39,7 +39,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.absoluteOffset
+import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.unit.IntOffset
 import kotlin.math.roundToInt
 import androidx.compose.foundation.lazy.LazyColumn
@@ -454,10 +455,12 @@ fun NowPlayingScreen(
             if (nearlyCollapsed) {
                 // Same place and width as the real mini player, which on wide screens sits beside the
                 // navigation rail rather than spanning the screen. The card adds 8dp either side.
+                // miniLeft is measured from the left, so place it absolutely (not mirrored in RTL).
                 val density = LocalDensity.current
                 val cardPad = with(density) { 8.dp.toPx() }
                 val placed = if (sheet.miniWidth > 0f) {
-                    Modifier.offset { IntOffset((sheet.miniLeft - cardPad).roundToInt(), 0) }
+                    Modifier.align(AbsoluteAlignment.TopLeft)
+                        .absoluteOffset { IntOffset((sheet.miniLeft - cardPad).roundToInt(), 0) }
                         .width(with(density) { (sheet.miniWidth + 2 * cardPad).toDp() })
                 } else {
                     Modifier.fillMaxWidth()

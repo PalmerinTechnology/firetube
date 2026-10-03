@@ -44,7 +44,7 @@ class CollapseWhenNoSongTest {
     @Test
     fun staysOpenWhileTheRestoredQueueComesBack() {
         restoredOpen()
-        advance(5_000) // not connected yet: nothing to decide
+        advance(5_000) // not connected yet: still within the connect timeout
         assertTrue(sheet.expanded)
         set { connected = true }
         advance(1_000)
@@ -59,6 +59,15 @@ class CollapseWhenNoSongTest {
         set { connected = true }
         advance(2_000)
         assertTrue("waits out the grace period", sheet.expanded)
+        advance(2_000)
+        assertFalse(sheet.expanded)
+    }
+
+    @Test
+    fun closesIfThePlayerNeverConnects() {
+        restoredOpen()
+        advance(9_000)
+        assertTrue("gives the connection time", sheet.expanded)
         advance(2_000)
         assertFalse(sheet.expanded)
     }

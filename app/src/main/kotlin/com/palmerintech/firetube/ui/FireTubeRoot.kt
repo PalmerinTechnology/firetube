@@ -146,8 +146,8 @@ fun FireTubeRoot(container: AppContainer, pendingLink: String?, onLinkHandled: (
                         container.player.play(listOf(track))
                         // Open once the player has the song, so Now Playing slides up out of the
                         // mini player rather than appearing already open.
-                        withTimeoutOrNull(5_000) { container.player.state.first { it.current?.id == track.id } }
-                        sheet.expand()
+                        val arrived = withTimeoutOrNull(5_000) { container.player.state.first { it.current?.id == track.id } }
+                        if (arrived != null) sheet.expand()
                     }
                 }
             }

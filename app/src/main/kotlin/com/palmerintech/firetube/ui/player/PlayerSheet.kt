@@ -102,16 +102,23 @@ fun rememberPlayerSheetState(initiallyExpanded: Boolean = false): PlayerSheetSta
  * song and keep D-pad focus out of the app meanwhile. If the queue ran out (or a drag up from the
  * mini player was cut short by it disappearing) it closes at once. If the app was restored with
  * Now Playing open, the service restores its queue asynchronously, so it waits [graceMs] after
- * connecting before deciding there's nothing to show.
+ * connecting before deciding there's nothing to show, or [connectTimeoutMs] if the player never
+ * connects (Now Playing isn't drawn without a song, so it would otherwise block D-pad focus).
  */
 @Composable
-fun CollapseWhenNoSong(sheet: PlayerSheetState, hasSong: Boolean, connected: Boolean, graceMs: Long = 3_000) {
+fun CollapseWhenNoSong(
+    sheet: PlayerSheetState,
+    hasSong: Boolean,
+    connected: Boolean,
+    graceMs: Long = 3_000,
+    connectTimeoutMs: Long = 10_000,
+) {
     var hadSong by remember { mutableStateOf(false) }
     LaunchedEffect(hasSong, connected) {
         if (hasSong) { hadSong = true; return@LaunchedEffect }
         if (!sheet.isVisible) return@LaunchedEffect
-        if (hadSong) sheet.collapse()
-        else if (connected) { delay(graceMs); sheet.collapse() }
+        if (!hadSong) delay(if (connected) graceMs else connectTimeoutMs)
+        sheet.collapse()
     }
 }
 
