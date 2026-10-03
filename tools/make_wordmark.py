@@ -36,8 +36,11 @@ FLAME = (
 FLAME_BOX = (39.5, 27.0, 74.0, 83.0)  # x0, y0, x1, y1
 FLAME_HEIGHT = 48.0
 FLAME_TOP = 1.0
-# The flame and the letters share a bottom line: the flame's base sits on the text baseline.
+# The flame's base sits at BASELINE; the letters sit TEXT_LIFT above it. Measured to the pixel the
+# two lined up, but the flame narrows to a thin rounded base, so letters on the same line read as
+# hanging below it.
 BASELINE = FLAME_TOP + FLAME_HEIGHT
+TEXT_LIFT = 3.0
 HEIGHT = BASELINE + 1.0  # viewport height; nothing descends below the baseline in "FireTube"
 
 
@@ -101,7 +104,7 @@ def main() -> None:
     </group>
 </vector>
 """
-    text = f"""    <group android:translateX="{text_x:.3f}" android:translateY="{BASELINE:.3f}">
+    text = f"""    <group android:translateX="{text_x:.3f}" android:translateY="{BASELINE - TEXT_LIFT:.3f}">
         <path android:fillColor="#FFFFFF" android:pathData="{letters}" />
     </group>
 </vector>
