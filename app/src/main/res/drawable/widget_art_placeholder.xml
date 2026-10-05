@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- No artwork (or nothing playing): the flame on a soft tile. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/widget_art_placeholder" />
+            <corners android:radius="@dimen/widget_art_radius" />
+        </shape>
+    </item>
+    <item
+        android:width="26dp"
+        android:height="26dp"
+        android:drawable="@drawable/ic_widget_flame"
+        android:gravity="center" />
+</layer-list>

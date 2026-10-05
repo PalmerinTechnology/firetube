@@ -66,11 +66,19 @@ class MainActivity : ComponentActivity() {
         // "Play <song> on FireTube" from Assistant / Android Auto.
         MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH ->
             intent.getStringExtra(SearchManager.QUERY)?.takeIf { it.isNotBlank() }?.let { SEARCH_PREFIX + it }
+        // Tapping the song on the home-screen widget.
+        ACTION_OPEN_PLAYER -> OPEN_PLAYER
         else -> null
     }
 
     companion object {
         /** Marks a pending "link" that is really a voice search query. */
         const val SEARCH_PREFIX = "search:"
+
+        /** Opens Now Playing (from the widget). */
+        const val ACTION_OPEN_PLAYER = "com.palmerintech.firetube.action.OPEN_PLAYER"
+
+        /** The pending "link" for [ACTION_OPEN_PLAYER]. */
+        const val OPEN_PLAYER = "player:"
     }
 }

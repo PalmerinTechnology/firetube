@@ -4,4 +4,13 @@
     <!-- The wordmark flame's gradient ends (drawable/wordmark_flame.xml). -->
     <color name="flame_start">#FF7043</color>
     <color name="flame_end">#B71C1C</color>
+
+    <!-- Home-screen widget; values-night has the dark versions (widgets follow the system theme). -->
+    <color name="widget_surface">#FFF4F2</color>
+    <color name="widget_text">#201A19</color>
+    <color name="widget_text_secondary">#6E5B58</color>
+    <color name="widget_art_placeholder">#F7E5E2</color>
+    <color name="widget_ripple">#1F000000</color>
+    <color name="widget_on_play">#FFFFFF</color>
+    <color name="widget_ripple_on_play">#40FFFFFF</color>
 </resources>

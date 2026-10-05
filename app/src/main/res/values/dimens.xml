@@ -1,0 +1,9 @@
+<resources>
+    <!-- Home-screen widget. values-v31 uses the launcher's own corner radii. -->
+    <dimen name="widget_radius">16dp</dimen>
+    <dimen name="widget_art_radius">8dp</dimen>
+    <dimen name="widget_padding">8dp</dimen>
+    <dimen name="widget_art_size">48dp</dimen>
+    <dimen name="widget_button_size">40dp</dimen>
+    <dimen name="widget_play_size">44dp</dimen>
+</resources>
