@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.focus.FocusRequester
@@ -27,6 +28,7 @@ import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import kotlin.math.abs
@@ -53,6 +55,7 @@ import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.BedtimeOff
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Favorite
@@ -69,6 +72,8 @@ import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -109,6 +114,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import coil3.compose.AsyncImage
 import com.palmerintech.firetube.AppContainer
+import com.palmerintech.firetube.player.PlaybackSpeed
 import com.palmerintech.firetube.player.PlayerUiState
 import com.palmerintech.firetube.player.SleepTimer
 import com.palmerintech.firetube.ui.components.AddToPlaylistDialog
@@ -119,6 +125,7 @@ import com.palmerintech.firetube.ui.components.CastButton
 import com.palmerintech.firetube.ui.components.LocalTrackMenu
 import com.palmerintech.firetube.ui.components.TrackRow
 import com.palmerintech.firetube.ui.components.formatDuration
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
@@ -308,10 +315,16 @@ fun NowPlayingScreen(
     val player = container.player
     val isFavorite by container.library.isFavorite(track.id).collectAsState(false)
     val sleep by container.sleepTimer.state.collectAsState()
+    // The saved speed, not every value the player passes through on its way there (or while a
+    // Chromecast refuses it); once it has refused, what it actually plays at.
+    val savedSpeed by remember { container.settings.settings.map { it.playbackSpeed } }.collectAsState(null)
+    val speedUnsupported by container.speedGuard.unsupported.collectAsState()
+    val speed = if (speedUnsupported) state.speed else savedSpeed ?: state.speed
     val scope = rememberCoroutineScope()
     val menu = LocalTrackMenu.current
     var showQueue by remember { mutableStateOf(false) }
     var showSleep by remember { mutableStateOf(false) }
+    var showSpeed by remember { mutableStateOf(false) }
     var addToPlaylist by remember { mutableStateOf(false) }
     var scrubbing by remember { mutableStateOf<Float?>(null) }
 
@@ -372,6 +385,15 @@ fun NowPlayingScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onClose) { Icon(Icons.Default.KeyboardArrowDown, "Close player") }
                     Text("Now playing", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    TextButton(onClick = { showSpeed = true }, modifier = Modifier.semantics { contentDescription = "Playback speed ${PlaybackSpeed.label(speed)}" }) {
+                        // Plain at 1x; highlighted only when the speed is changed.
+                        val normal = PlaybackSpeed.same(speed, 1f)
+                        Text(
+                            PlaybackSpeed.label(speed),
+                            color = if (normal) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary,
+                            fontWeight = if (normal) FontWeight.Normal else FontWeight.Bold,
+                        )
+                    }
                     CastButton(container.castAvailable)
                     IconButton(onClick = { menu.open(track) }) { Icon(Icons.Default.MoreVert, "More") }
                 }
@@ -477,6 +499,9 @@ fun NowPlayingScreen(
 
     if (showQueue) QueueSheet(container, state) { showQueue = false }
     if (showSleep) SleepSheet(container.sleepTimer, sleep) { showSleep = false }
+    if (showSpeed) {
+        SpeedSheet(savedSpeed ?: state.speed, speedUnsupported, { scope.launch { container.settings.setPlaybackSpeed(it) } }) { showSpeed = false }
+    }
     if (addToPlaylist) AddToPlaylistDialog(container, listOf(track)) { addToPlaylist = false }
 }
 
@@ -551,6 +576,48 @@ private fun SleepSheet(timer: SleepTimer, state: SleepTimer.State, onDismiss: ()
                 Spacer(Modifier.weight(1f))
                 if (state != SleepTimer.State.Off) TextButton(onClick = { timer.cancel(); onDismiss() }) { Text("Turn off") }
             }
+        }
+    }
+}
+
+/** Playback speed; saved in settings, which the playback service applies (pitch is kept). */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SpeedSheet(speed: Float, unsupported: Boolean, onSpeed: (Float) -> Unit, onDismiss: () -> Unit) {
+    var custom by remember { mutableFloatStateOf(speed) }
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp)) {
+            Text("Playback speed", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            if (unsupported) {
+                Text(
+                    "This device doesn't support changing the speed; it plays at its own.",
+                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            // Wraps onto a second line on narrow screens, so every choice stays visible.
+            FlowRow(
+                Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                PlaybackSpeed.choices.forEach { v ->
+                    val selected = PlaybackSpeed.same(v, speed)
+                    FilterChip(
+                        selected = selected,
+                        onClick = { onSpeed(v); onDismiss() },
+                        label = { Text(PlaybackSpeed.label(v)) },
+                        leadingIcon = if (selected) {
+                            { Icon(Icons.Default.Check, null, Modifier.size(FilterChipDefaults.IconSize)) }
+                        } else null,
+                    )
+                }
+            }
+            Text("Custom: ${PlaybackSpeed.label(custom)}")
+            Slider(
+                custom, { custom = PlaybackSpeed.clamp(it) },
+                valueRange = PlaybackSpeed.MIN..PlaybackSpeed.MAX,
+                steps = ((PlaybackSpeed.MAX - PlaybackSpeed.MIN) / 0.05f).roundToInt() - 1,
+                onValueChangeFinished = { onSpeed(custom) },
+            )
         }
     }
 }

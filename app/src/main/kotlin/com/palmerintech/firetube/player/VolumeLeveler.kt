@@ -24,6 +24,10 @@ import kotlin.math.tanh
  * - soft-limits whatever is left so boosted songs never clip.
  * When turned off it glides back to unity and then passes audio through untouched.
  *
+ * It's also the last stage before the device's effects (see [AudioEffects]), so it leaves the
+ * [headroomDb] they boost by free: output is scaled down after the limiter, and the boosted
+ * frequencies then come back up to full scale at most instead of clipping.
+ *
  * Requires 16-bit PCM input: [androidx.media3.exoplayer.audio.DefaultAudioSink] converts to it
  * ahead of custom processors as long as float output stays disabled.
  */
@@ -32,6 +36,9 @@ class VolumeLeveler : BaseAudioProcessor() {
 
     /** Toggled from settings; when off, the gain glides back to unity. */
     @Volatile var enabled: Boolean = true
+
+    /** How far below full scale to keep the output, in dB, for effects that boost after it. */
+    @Volatile var headroomDb: Double = 0.0
 
     /** Smoothed loudness estimate of the music, in dBFS (RMS). */
     private var loudnessDb = TARGET_DB
@@ -64,7 +71,8 @@ class VolumeLeveler : BaseAudioProcessor() {
         val out = replaceOutputBuffer(bytes)
         val input = inputBuffer.order(ByteOrder.nativeOrder())
 
-        val passthrough = !enabled && abs(gainDb) < 0.01
+        val headroom = 10.0.pow(-headroomDb.coerceAtLeast(0.0) / 20)
+        val passthrough = !enabled && abs(gainDb) < 0.01 && headroom == 1.0
 
         val blockSamples = ((sampleRate * BLOCK_SECONDS).toInt().coerceAtLeast(1)) * channels
         if (block.size < blockSamples) block = ShortArray(blockSamples)
@@ -88,7 +96,7 @@ class VolumeLeveler : BaseAudioProcessor() {
                 for (i in 0 until n) out.putShort(block[i])
             } else {
                 val gain = 10.0.pow(gainDb / 20)
-                for (i in 0 until n) out.putShort(limit(block[i] / 32768.0 * gain))
+                for (i in 0 until n) out.putShort(limit(block[i] / 32768.0 * gain, headroom))
             }
             done += n
         }
@@ -119,12 +127,12 @@ class VolumeLeveler : BaseAudioProcessor() {
         gainDb += (wanted - gainDb) * (seconds / tau).coerceAtMost(1.0)
     }
 
-    /** Soft knee above [LIMIT_KNEE]: transparent below it, never exceeds full scale above it. */
-    private fun limit(x: Double): Short {
+    /** Soft knee above [LIMIT_KNEE]: transparent below it, never exceeds full scale (times [scale]) above it. */
+    private fun limit(x: Double, scale: Double): Short {
         val a = abs(x)
         val y = if (a <= LIMIT_KNEE) a else LIMIT_KNEE + (1 - LIMIT_KNEE) * tanh((a - LIMIT_KNEE) / (1 - LIMIT_KNEE))
         val signed = if (x < 0) -y else y
-        return (signed * 32767).toInt().coerceIn(-32768, 32767).toShort()
+        return (signed * scale * 32767).toInt().coerceIn(-32768, 32767).toShort()
     }
 
     /** Keep the learned loudness across seeks and track changes — that's what levels songs against each other. */
