@@ -30,11 +30,13 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,6 +59,7 @@ import com.palmerintech.firetube.player.PlayerUiState
 import com.palmerintech.firetube.ui.Load
 import com.palmerintech.firetube.ui.components.focusRing
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import java.net.ConnectException
 import java.net.UnknownHostException
 
@@ -89,7 +92,7 @@ internal fun LyricsSheet(container: AppContainer, state: PlayerUiState, onDismis
                     color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
             }
-            LyricsBody(load, state.positionMs, container.player::seekTo, { attempt++ }, Modifier.weight(1f))
+            LyricsBody(load, rememberPlaybackClock(state), container.player::seekTo, { attempt++ }, Modifier.weight(1f))
             Text(
                 "Lyrics from LRCLIB", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.fillMaxWidth().padding(8.dp), textAlign = TextAlign.Center,
@@ -98,11 +101,37 @@ internal fun LyricsSheet(container: AppContainer, state: PlayerUiState, onDismis
     }
 }
 
+/**
+ * The playback position, read as a function so only what uses it recomposes. The player reports
+ * it twice a second; in between it's estimated from the time since, so a line lights up when it
+ * starts rather than up to half a second late. (Assumes normal speed; each report corrects it.)
+ */
+@Composable
+private fun rememberPlaybackClock(state: PlayerUiState): () -> Long {
+    val playing = state.isPlaying && !state.isBuffering
+    val reportedAt = remember(state.positionMs, playing) { SystemClock.uptimeMillis() }
+    val reported by rememberUpdatedState(state.positionMs)
+    val anchor by rememberUpdatedState(reportedAt)
+    val running by rememberUpdatedState(playing)
+    var now by remember { mutableLongStateOf(SystemClock.uptimeMillis()) }
+    LaunchedEffect(playing) {
+        while (playing) {
+            now = SystemClock.uptimeMillis()
+            delay(CLOCK_STEP_MS)
+        }
+    }
+    return remember { { estimatePosition(reported, anchor, now, running) } }
+}
+
+/** [reportedMs] plus the time since it was reported at [reportedAt], while playing; capped. */
+internal fun estimatePosition(reportedMs: Long, reportedAt: Long, now: Long, playing: Boolean): Long =
+    if (!playing) reportedMs else reportedMs + (now - reportedAt).coerceIn(0, MAX_ESTIMATE_MS)
+
 /** The sheet's content for each lookup state; separate from [LyricsSheet] so it can be tested. */
 @Composable
 internal fun LyricsBody(
     load: Load<LyricsResult>,
-    positionMs: Long,
+    positionMs: () -> Long,
     onSeek: (Long) -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
@@ -137,8 +166,10 @@ private fun Message(text: String, modifier: Modifier = Modifier) {
  * jump there. Scrolling by hand, or moving D-pad focus, pauses the following for a few seconds.
  */
 @Composable
-private fun SyncedLyrics(lines: List<LrcLine>, positionMs: Long, onSeek: (Long) -> Unit) {
-    val current = Lrc.indexAt(lines, positionMs)
+private fun SyncedLyrics(lines: List<LrcLine>, positionMs: () -> Long, onSeek: (Long) -> Unit) {
+    val position by rememberUpdatedState(positionMs)
+    // Recomposes when the line changes, not on every clock step.
+    val current by remember(lines) { derivedStateOf { Lrc.indexAt(lines, position()) } }
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = current.coerceAtLeast(0))
     val dragged by listState.interactionSource.collectIsDraggedAsState()
     var heldUntil by remember { mutableLongStateOf(0L) }
@@ -193,7 +224,7 @@ private fun SyncedLyrics(lines: List<LrcLine>, positionMs: Long, onSeek: (Long) 
                         .focusRing(shape)
                         .clip(shape)
                         // Follow again from the tapped line once playback gets there.
-                        .clickable { heldUntil = 0; onSeek(line.timeMs) }
+                        .clickable(onClickLabel = "Jump to this line") { heldUntil = 0; onSeek(line.timeMs) }
                         .semantics { selected = isCurrent }
                         .padding(horizontal = 16.dp, vertical = 10.dp),
                 )
@@ -222,3 +253,9 @@ private fun PlainLyrics(text: String) {
 
 /** How long hand scrolling or D-pad browsing pauses following playback. */
 private const val HOLD_MS = 4000L
+
+/** How often the estimated position advances between the player's reports. */
+private const val CLOCK_STEP_MS = 50L
+
+/** Never estimate further than this past a report (a bit over the player's 500 ms interval). */
+private const val MAX_ESTIMATE_MS = 750L

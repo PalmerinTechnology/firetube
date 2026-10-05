@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
@@ -36,7 +37,7 @@ class LyricsBodyTest {
 
     private fun show(load: Load<LyricsResult>, position: () -> Long = { 0 }) = compose.setContent {
         MaterialTheme {
-            LyricsBody(load, position(), onSeek = { seeks += it }, onRetry = { retries++ }, modifier = Modifier.height(600.dp))
+            LyricsBody(load, position, onSeek = { seeks += it }, onRetry = { retries++ }, modifier = Modifier.height(600.dp))
         }
     }
 
@@ -62,6 +63,21 @@ class LyricsBodyTest {
     }
 
     @Test
+    fun `lines say what tapping does`() {
+        show(Load.Ready(LyricsResult.Synced(lines)))
+        val label = compose.onNodeWithText("Line 2").fetchSemanticsNode().config[SemanticsActions.OnClick].label
+        assertEquals("Jump to this line", label)
+    }
+
+    @Test
+    fun `the position estimate runs between reports while playing, capped`() {
+        assertEquals(10_000L, estimatePosition(10_000, reportedAt = 500, now = 700, playing = false))
+        assertEquals(10_200L, estimatePosition(10_000, reportedAt = 500, now = 700, playing = true))
+        assertEquals(10_750L, estimatePosition(10_000, reportedAt = 500, now = 5_000, playing = true)) // stalled
+        assertEquals(10_000L, estimatePosition(10_000, reportedAt = 500, now = 400, playing = true))
+    }
+
+    @Test
     fun `instrumental gaps show a note`() {
         show(Load.Ready(LyricsResult.Synced(listOf(LrcLine(0, "Sing"), LrcLine(4_000, "")))))
         compose.onNodeWithText("♪").assertIsDisplayed()
@@ -70,7 +86,7 @@ class LyricsBodyTest {
     @Test
     fun `plain lyrics, nothing found and failures`() {
         var load by mutableStateOf<Load<LyricsResult>>(Load.Ready(LyricsResult.Plain("First line\n\nSecond verse")))
-        compose.setContent { MaterialTheme { LyricsBody(load, 0, {}, { retries++ }) } }
+        compose.setContent { MaterialTheme { LyricsBody(load, { 0L }, {}, { retries++ }) } }
         compose.onNodeWithText("First line").assertIsDisplayed()
         compose.onNodeWithText("Second verse").assertIsDisplayed()
 

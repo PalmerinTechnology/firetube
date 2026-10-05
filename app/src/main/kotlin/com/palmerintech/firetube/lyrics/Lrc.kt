@@ -11,10 +11,14 @@ data class LrcLine(val timeMs: Long, val text: String)
 object Lrc {
     private val timestamp = Regex("""\[(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?]""")
     private val offsetTag = Regex("""^\s*\[offset:\s*([+-]?\d+)\s*]""", RegexOption.IGNORE_CASE)
+    /** Written as a code point: a literal one in the source is invisible (and lint rejects it). */
+    private val BOM = Char(0xFEFF).toString()
     private val wordTiming = Regex("""<\d{1,3}:\d{1,2}(?:[.:]\d{1,3})?>""")
 
-    /** The timed lines in playback order; empty when [lrc] has no timestamps at all. */
-    fun parse(lrc: String): List<LrcLine> {
+    /** The timed lines in playback order; empty when [text] has no timestamps at all. */
+    fun parse(text: String): List<LrcLine> {
+        // A byte order mark would hide the first line's timestamp.
+        val lrc = text.removePrefix(BOM)
         // Per the format, a positive offset makes lyrics appear sooner.
         val offset = lrc.lineSequence().firstNotNullOfOrNull { offsetTag.find(it)?.groupValues?.get(1)?.toLongOrNull() } ?: 0L
         val lines = mutableListOf<LrcLine>()

@@ -1,7 +1,13 @@
 package com.palmerintech.firetube.lyrics
 
 import com.palmerintech.firetube.extractor.Track
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
+import okhttp3.Call
 import okhttp3.HttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -14,12 +20,17 @@ import org.junit.Assert.fail
 import org.junit.Test
 import java.io.IOException
 import java.net.UnknownHostException
+import java.util.Collections
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 /** The LRCLIB client against canned responses; no request leaves the machine. */
 class LyricsTest {
 
-    private val requests = mutableListOf<HttpUrl>()
-    private val userAgents = mutableListOf<String?>()
+    // Filled from OkHttp's threads.
+    private val requests: MutableList<HttpUrl> = Collections.synchronizedList(mutableListOf())
+    private val userAgents: MutableList<String?> = Collections.synchronizedList(mutableListOf())
 
     /** Answers each request with [respond] (status to body); null = 404. */
     private fun lyrics(respond: (HttpUrl) -> Pair<Int, String>?): Lyrics {
@@ -36,8 +47,11 @@ class LyricsTest {
 
     private val track = Track("vid1", "Artist - Song (Official Video)", "ArtistVEVO", 200, null)
 
-    private fun record(name: String = "Song", duration: Double = 200.0, synced: String? = SYNCED, plain: String? = "Hello\nWorld", instrumental: Boolean = false) =
-        """{"id":1,"trackName":"$name","artistName":"Artist","albumName":"A","duration":$duration,"instrumental":$instrumental,""" +
+    private fun record(
+        name: String = "Song", duration: Double = 200.0, synced: String? = SYNCED, plain: String? = "Hello\nWorld",
+        instrumental: Boolean = false, artist: String = "Artist",
+    ) =
+        """{"id":1,"trackName":"$name","artistName":"$artist","albumName":"A","duration":$duration,"instrumental":$instrumental,""" +
             """"plainLyrics":${plain?.let { "\"${it.replace("\n", "\\n")}\"" } ?: "null"},""" +
             """"syncedLyrics":${synced?.let { "\"${it.replace("\n", "\\n")}\"" } ?: "null"}}"""
 
@@ -142,7 +156,106 @@ class LyricsTest {
         assertEquals("/api/search", requests.first().encodedPath)
     }
 
+    @Test
+    fun `Topic uploads look up the song, not its version label`() = runTest {
+        val sun = Track("sun", "Here Comes The Sun - Remastered 2009", "The Beatles - Topic", 186, null)
+        val l = lyrics { url ->
+            if (url.encodedPath == "/api/get") 200 to record(name = "Here Comes The Sun - Remastered 2009", artist = "The Beatles", duration = 185.0) else null
+        }
+        assertTrue(l.lookup(sun) is LyricsResult.Synced)
+        assertEquals("Here Comes The Sun", requests.single().queryParameter("track_name"))
+        assertEquals("The Beatles", requests.single().queryParameter("artist_name"))
+    }
+
+    @Test
+    fun `a version word never pulls in another song's lyrics`() = runTest {
+        val hallelujah = Track("hal", "Hallelujah - Live", "Jeff Buckley - Topic", 420, null)
+        val wrong = "[" + listOf(
+            record(name = "Live Forever", artist = "Oasis", duration = 420.0),
+            record(name = "Alive", artist = "Pearl Jam", duration = 421.0),
+            record(name = "Live", artist = "Jeff Buckley", duration = 420.0),
+        ).joinToString(",") + "]"
+        val miss = lyrics { url -> if (url.encodedPath == "/api/search") 200 to wrong else null }
+        assertEquals(LyricsResult.NotFound, miss.lookup(hallelujah))
+        assertTrue(requests.all { it.queryParameter("track_name") ?: it.queryParameter("q") != "Live" })
+
+        val hit = lyrics { url ->
+            if (url.encodedPath == "/api/search") 200 to "[" + record(name = "Hallelujah", artist = "Jeff Buckley", duration = 418.0) + "]" else null
+        }
+        assertTrue(hit.lookup(hallelujah) is LyricsResult.Synced)
+    }
+
+    @Test
+    fun `free-text and different-length results must be by the right artist`() = runTest {
+        // Only the free-text search answers, with the right song name by someone else.
+        val l = lyrics { url -> if (url.queryParameter("q") != null) 200 to "[" + record(artist = "Someone Else") + "]" else null }
+        assertEquals(LyricsResult.NotFound, l.lookup(track))
+        val fallback = lyrics { url -> if (url.encodedPath == "/api/search") 200 to "[" + record(duration = 260.0, artist = "Cover Band") + "]" else null }
+        assertEquals(LyricsResult.NotFound, fallback.lookup(track))
+    }
+
+    @Test
+    fun `nulls in a result fall back to defaults`() = runTest {
+        val l = lyrics { url ->
+            if (url.encodedPath == "/api/search") {
+                200 to """[{"id":1,"trackName":"Song","artistName":"Artist","duration":null,"instrumental":null,"plainLyrics":null,"syncedLyrics":"$SYNCED_JSON"}]"""
+            } else {
+                null
+            }
+        }
+        assertTrue(l.lookup(track.copy(id = "nulls", durationSeconds = 0)) is LyricsResult.Synced)
+    }
+
+    @Test
+    fun `cancelling a lookup cancels its request and caches nothing`() = runBlocking {
+        val calls = mutableListOf<Call>()
+        val release = CountDownLatch(1)
+        val client = OkHttpClient.Builder().addInterceptor { chain ->
+            synchronized(calls) { calls += chain.call() }
+            release.await(5, TimeUnit.SECONDS)
+            throw IOException("Canceled")
+        }.build()
+        val l = Lyrics(client, "FireTube/test")
+        val job = launch(Dispatchers.Default) { l.lookup(track) }
+        waitFor { synchronized(calls) { calls.isNotEmpty() } }
+        job.cancel()
+        // The coroutine ends at once, without waiting for the stuck request.
+        withTimeout(1_000) { job.join() }
+        assertTrue(calls.single().isCanceled())
+        release.countDown()
+        assertEquals(null, l.cached(track.id))
+        assertEquals(1, calls.size)
+    }
+
+    @Test
+    fun `asking twice at once makes one set of requests`() = runBlocking {
+        val started = AtomicInteger()
+        val release = CountDownLatch(1)
+        val l = lyrics { url ->
+            started.incrementAndGet()
+            release.await(5, TimeUnit.SECONDS)
+            if (url.encodedPath == "/api/get") 200 to record() else null
+        }
+        val first = async(Dispatchers.Default) { l.lookup(track) }
+        waitFor { started.get() == 1 }
+        val second = async(Dispatchers.Default) { l.lookup(track) }
+        Thread.sleep(200) // time for a second request, if it were going to make one
+        assertEquals(1, started.get())
+        release.countDown()
+        assertEquals(first.await(), second.await())
+        assertEquals(1, requests.size)
+    }
+
+    private fun waitFor(condition: () -> Boolean) {
+        val deadline = System.currentTimeMillis() + 5_000
+        while (!condition()) {
+            check(System.currentTimeMillis() < deadline) { "timed out" }
+            Thread.sleep(10)
+        }
+    }
+
     private companion object {
+        const val SYNCED_JSON = "[00:01.00]Hello\\n[00:02.00]World"
         const val SYNCED = "[00:01.00]Hello\n[00:02.00]World"
     }
 }

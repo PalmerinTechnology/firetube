@@ -6,6 +6,8 @@ import org.junit.Test
 
 class LrcTest {
 
+    private val BOM = Char(0xFEFF).toString()
+
     @Test
     fun `parses timestamps in their common precisions`() {
         val lines = Lrc.parse(
@@ -69,6 +71,13 @@ class LrcTest {
     fun `enhanced word timings are dropped and CRLF is handled`() {
         val lines = Lrc.parse("[00:01.00]<00:01.00>Hello <00:01.50>world\r\n[00:02.00]Next\r\n")
         assertEquals(listOf("Hello world", "Next"), lines.map { it.text })
+    }
+
+    @Test
+    fun `a leading byte order mark doesn't hide the first line`() {
+        val lines = Lrc.parse(BOM + "[00:01.00]First\n[00:02.00]Second")
+        assertEquals(listOf(1_000L to "First", 2_000L to "Second"), lines.map { it.timeMs to it.text })
+        assertEquals(500L, Lrc.parse(BOM + "[offset:500]\n[00:01.00]a").single().timeMs)
     }
 
     @Test

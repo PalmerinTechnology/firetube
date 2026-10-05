@@ -2,14 +2,23 @@ package com.palmerintech.firetube.lyrics
 
 import com.palmerintech.firetube.extractor.Track
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
 import java.io.IOException
+import kotlin.coroutines.resumeWithException
 import kotlin.math.abs
 
 /** What a lyrics lookup found for a track. */
@@ -35,17 +44,31 @@ class Lyrics(
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, LyricsResult>) = size > CACHE_SIZE
     }
 
+    /** One lock per track being looked up, so asking twice at once makes one set of requests. */
+    private val inFlight = mutableMapOf<String, Mutex>()
+
     fun cached(trackId: String): LyricsResult? = synchronized(cache) { cache[trackId] }
 
-    /** Lyrics for [track]. Throws [IOException] when LRCLIB can't be reached (nothing is cached then). */
+    /**
+     * Lyrics for [track]. Throws [IOException] when LRCLIB can't be reached (nothing is cached
+     * then). Cancelling the caller cancels the request in flight.
+     */
     suspend fun lookup(track: Track): LyricsResult {
         cached(track.id)?.let { return it }
-        val result = withContext(Dispatchers.IO) { fetch(track) }
-        synchronized(cache) { cache[track.id] = result }
-        return result
+        val lock = synchronized(inFlight) { inFlight.getOrPut(track.id) { Mutex() } }
+        try {
+            // A second caller waits here for the first, then finds its result cached. If the
+            // first was cancelled or failed, the second looks it up itself.
+            return lock.withLock {
+                cached(track.id) ?: withContext(Dispatchers.IO) { fetch(track) }
+                    .also { result -> synchronized(cache) { cache[track.id] = result } }
+            }
+        } finally {
+            synchronized(inFlight) { if (!lock.isLocked) inFlight.remove(track.id, lock) }
+        }
     }
 
-    private fun fetch(track: Track): LyricsResult {
+    private suspend fun fetch(track: Track): LyricsResult {
         val queries = TitleCleaner.queries(track.title, track.artist)
         val duration = track.durationSeconds.toDouble()
         var fallback: Record? = null
@@ -70,16 +93,33 @@ class Lyrics(
         return fallback?.toResult(false) ?: LyricsResult.NotFound
     }
 
-    /** The response body, or null for "not found"; throws for network or server failures. */
-    private fun get(path: String, vararg params: Pair<String, String>): String? {
+    /**
+     * The response body, or null for "not found"; throws for network or server failures. The
+     * call is cancelled with the coroutine, so closing the sheet stops the lookup.
+     */
+    private suspend fun get(path: String, vararg params: Pair<String, String>): String? {
+        currentCoroutineContext().ensureActive()
         val url = baseUrl.newBuilder().addPathSegments(path)
             .apply { params.forEach { (k, v) -> addQueryParameter(k, v) } }
             .build()
-        val request = Request.Builder().url(url).header("User-Agent", userAgent).build()
-        client.newCall(request).execute().use { resp ->
-            if (resp.code == 404) return null
-            if (!resp.isSuccessful) throw IOException("LRCLIB returned ${resp.code}")
-            return resp.body.string()
+        val call = client.newCall(Request.Builder().url(url).header("User-Agent", userAgent).build())
+        return suspendCancellableCoroutine { cont ->
+            cont.invokeOnCancellation { call.cancel() }
+            call.enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) = cont.resumeWithException(e)
+
+                override fun onResponse(call: Call, response: Response) = cont.resumeWith(
+                    runCatching {
+                        response.use { resp ->
+                            when {
+                                resp.code == 404 -> null
+                                !resp.isSuccessful -> throw IOException("LRCLIB returned ${resp.code}")
+                                else -> resp.body.string()
+                            }
+                        }
+                    },
+                )
+            })
         }
     }
 
@@ -114,16 +154,17 @@ class Lyrics(
         const val LENGTH_TOLERANCE = 5.0
         /** Shorter than this isn't a song's lyrics. */
         const val MIN_CHARS = 20
-        val json = Json { ignoreUnknownKeys = true }
+        // coerceInputValues: a null where a value is expected (duration, names) means the default.
+        val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
 
         fun closeLength(r: Record, duration: Double) = duration <= 0 || abs(r.duration - duration) <= LENGTH_TOLERANCE
 
-        /** LRCLIB's search is fuzzy; only accept a result whose song name resembles the query's. */
-        fun matches(r: Record, q: LyricsQuery): Boolean {
-            val want = TitleCleaner.normalize(TitleCleaner.cleanTitle(q.title))
-            val got = TitleCleaner.normalize(TitleCleaner.cleanTitle(r.trackName))
-            return want.isEmpty() || got.isEmpty() || want in got || got in want
-        }
+        /**
+         * LRCLIB's search is fuzzy (and free text ignores the artist), so a result must be by the
+         * queried artist and have the queried song's name.
+         */
+        fun matches(r: Record, q: LyricsQuery): Boolean =
+            TitleCleaner.sameSong(q.title, r.trackName) && TitleCleaner.sameArtist(q.artist, r.artistName)
 
         /** The best usable hit: right name, then right length, words over "instrumental", synced, closest length. */
         fun pick(hits: List<Record>, q: LyricsQuery, duration: Double): Record? = hits
