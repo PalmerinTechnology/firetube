@@ -110,12 +110,16 @@ class PlayerConnection(private val context: Context, private val scope: Coroutin
         c.addMediaItems(tracks.map(MediaItems::of))
     }
 
-    fun togglePlay() = withController { c ->
-        if (c.isPlaying) c.pause() else {
-            if (c.playbackState == Player.STATE_IDLE) c.prepare()
-            if (c.playbackState == Player.STATE_ENDED) c.seekToDefaultPosition()
-            c.play()
-        }
+    fun togglePlay() = withController { c -> if (c.isPlaying) c.pause() else c.resume() }
+
+    /** Plays, picking a stopped or finished queue back up. */
+    fun resume() = withController { it.resume() }
+    fun pause() = withController { it.pause() }
+
+    private fun Player.resume() {
+        if (playbackState == Player.STATE_IDLE) prepare()
+        if (playbackState == Player.STATE_ENDED) seekToDefaultPosition()
+        play()
     }
 
     fun next() = withController { it.seekToNextMediaItem() }

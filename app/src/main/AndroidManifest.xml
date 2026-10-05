@@ -83,6 +83,20 @@
             </intent-filter>
         </service>
 
+        <!-- Home-screen widget. Not exported: the launcher's updates come from the system, and its
+             buttons are our own PendingIntents. -->
+        <receiver
+            android:name=".widget.NowPlayingWidget"
+            android:exported="false"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/now_playing_widget_info" />
+        </receiver>
+
         <service
             android:name=".player.DownloadsService"
             android:exported="false"

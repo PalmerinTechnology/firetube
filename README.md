@@ -14,7 +14,7 @@ crash details, no personal data), which you can turn off in Settings.
 
 - **Search** songs, videos and playlists, with suggestions. You can also paste a YouTube link.
 - **Radio-style autoplay:** when the queue runs out, related songs keep playing.
-- **Background playback** with lock-screen, notification and headset controls, plus a sleep timer.
+- **Background playback** with lock-screen, notification and headset controls, a home-screen widget, and a sleep timer.
 - **Playlists and Favorites.** Drag to reorder, or import any YouTube playlist.
 - **Offline downloads**, and a song cache so replays don't use data.
 - **Even-out volume** between loud and quiet uploads.

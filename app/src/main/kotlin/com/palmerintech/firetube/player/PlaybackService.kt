@@ -25,6 +25,7 @@ import com.palmerintech.firetube.R
 import com.palmerintech.firetube.extractor.Track
 import com.palmerintech.firetube.player.cast.CastItemConverter
 import com.palmerintech.firetube.ui.MainActivity
+import com.palmerintech.firetube.widget.WidgetUpdater
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -42,7 +43,7 @@ import java.net.UnknownHostException
  * Owns the player. Media3 gives us the notification, lock screen, Bluetooth/headset buttons,
  * audio focus, Android Auto and Chromecast hand-off from the session; this class adds FireTube's
  * behaviour on top: history, autoplay radio, SponsorBlock skipping, the sleep timer, error
- * recovery, queue restore and the audio settings (equalizer, crossfade, speed).
+ * recovery, queue restore, the home-screen widget and the audio settings (equalizer, crossfade, speed).
  */
 @UnstableApi
 class PlaybackService : MediaLibraryService() {
@@ -56,6 +57,8 @@ class PlaybackService : MediaLibraryService() {
     /** What the session controls: [exoPlayer], or a [CastPlayer] wrapping it that moves playback to a Chromecast. */
     private lateinit var player: Player
     private var session: MediaLibrarySession? = null
+    private val library by lazy { LibraryCallback(container, scope) }
+    private lateinit var widget: WidgetUpdater
 
     private val leveler = VolumeLeveler()
     private val effects = AudioEffects(leveler)
@@ -114,11 +117,12 @@ class PlaybackService : MediaLibraryService() {
         // Effects and fades are the phone's own audio, so they follow the ExoPlayer directly.
         exoPlayer.addListener(audioListener)
         effects.attach(exoPlayer.audioSessionId)
+        widget = WidgetUpdater(this, player, scope).also { it.start() }
 
         val openApp = PendingIntent.getActivity(
             this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        session = MediaLibrarySession.Builder(this, player, LibraryCallback(container, scope))
+        session = MediaLibrarySession.Builder(this, player, library)
             .setSessionActivity(openApp)
             .build()
 
@@ -154,6 +158,7 @@ class PlaybackService : MediaLibraryService() {
     override fun onDestroy() {
         // Synchronous: the scope is about to be cancelled.
         snapshotQueue()?.let { (tracks, index, position) -> container.queueStore.saveNow(tracks, index, position) }
+        widget.stop()
         session?.release()
         session = null
         effects.release()
@@ -398,7 +403,8 @@ class PlaybackService : MediaLibraryService() {
     private suspend fun restoreQueue() {
         if (player.mediaItemCount > 0) return
         val saved = container.queueStore.load() ?: return
-        if (saved.tracks.isEmpty() || player.mediaItemCount > 0) return
+        // Play may have been pressed meanwhile (e.g. on the widget); the session resumes the queue then.
+        if (saved.tracks.isEmpty() || player.mediaItemCount > 0 || library.resuming) return
         player.setMediaItems(
             saved.tracks.map { MediaItems.of(it.toTrack()) },
             saved.index.coerceIn(0, saved.tracks.lastIndex),
