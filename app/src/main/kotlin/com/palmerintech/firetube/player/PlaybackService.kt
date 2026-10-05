@@ -61,8 +61,8 @@ class PlaybackService : MediaLibraryService() {
     private val effects = AudioEffects(leveler)
     private val crossfade = Crossfade()
 
-    /** The saved playback speed: the source of truth for whichever player is active (phone or Chromecast). */
-    private var speedSetting = 1f
+    /** Set on a device change: try the speed afresh once the new player has loaded the media. */
+    private var retrySpeedWhenReady = false
     private var crossfadeJob: Job? = null
     private var skipJob: Job? = null
     private var extendJob: Job? = null
@@ -131,7 +131,7 @@ class PlaybackService : MediaLibraryService() {
                 effects.update(it.equalizerPreset, it.bassBoost)
                 crossfade.lengthMs = it.crossfadeSeconds * 1000L
                 applyCrossfade()
-                speedSetting = PlaybackSpeed.clamp(it.playbackSpeed)
+                if (!PlaybackSpeed.same(it.playbackSpeed, container.speedGuard.setting)) container.speedGuard.reset(it.playbackSpeed)
                 applySpeed()
             }
         }
@@ -186,6 +186,8 @@ class PlaybackService : MediaLibraryService() {
 
         override fun onDeviceInfoChanged(deviceInfo: androidx.media3.common.DeviceInfo) {
             // Cast hand-off copies the other player's speed across; put the saved one back.
+            container.speedGuard.reset()
+            retrySpeedWhenReady = true
             applySpeed()
             // Back on the phone: the cast proxy (and its wake/Wi-Fi locks) is no longer needed.
             when (deviceInfo.playbackType) {
@@ -195,11 +197,15 @@ class PlaybackService : MediaLibraryService() {
             }
         }
 
-        override fun onPlaybackParametersChanged(playbackParameters: PlaybackParameters) {
-            if (!PlaybackSpeed.same(playbackParameters.speed, speedSetting)) applySpeed()
-        }
+        override fun onPlaybackParametersChanged(playbackParameters: PlaybackParameters) = applySpeed()
 
         override fun onPlaybackStateChanged(state: Int) {
+            // A receiver may refuse the speed until it has loaded the media.
+            if (state == Player.STATE_READY && retrySpeedWhenReady) {
+                retrySpeedWhenReady = false
+                container.speedGuard.reset()
+                applySpeed()
+            }
             if (state == Player.STATE_ENDED) maybeExtendQueue()
         }
 
@@ -291,10 +297,13 @@ class PlaybackService : MediaLibraryService() {
         }
     }
 
-    /** Puts the saved speed on the active player (pitch kept). A player that can't take it is left as it is. */
+    /** Puts the saved speed on the active player (pitch kept), unless it has refused it (see [SpeedGuard]). */
     private fun applySpeed() {
-        if (!player.isCommandAvailable(Player.COMMAND_SET_SPEED_AND_PITCH)) return
-        if (!PlaybackSpeed.same(player.playbackParameters.speed, speedSetting)) player.setPlaybackSpeed(speedSetting)
+        val speed = container.speedGuard.next(
+            player.playbackParameters.speed,
+            canSet = player.isCommandAvailable(Player.COMMAND_SET_SPEED_AND_PITCH),
+        ) ?: return
+        player.setPlaybackSpeed(speed)
     }
 
     private fun isCasting() = player.deviceInfo.playbackType == androidx.media3.common.DeviceInfo.PLAYBACK_TYPE_REMOTE
