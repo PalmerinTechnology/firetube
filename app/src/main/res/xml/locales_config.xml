@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The languages FireTube is translated into, for Android 13+'s per-app language setting
+    (Settings > System > Languages > App languages). Add a line here with each new values-xx folder;
+    LocaleConfigTest checks the two stay in step.
+-->
+<locale-config xmlns:android="http://schemas.android.com/apk/res/android">
+    <locale android:name="en" />
+    <locale android:name="es" />
+    <locale android:name="pt-BR" />
+</locale-config>

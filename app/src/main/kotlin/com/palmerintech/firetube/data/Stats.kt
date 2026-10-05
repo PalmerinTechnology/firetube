@@ -1,5 +1,8 @@
 package com.palmerintech.firetube.data
 
+import android.content.res.Resources
+import androidx.annotation.StringRes
+import com.palmerintech.firetube.R
 import com.palmerintech.firetube.data.db.PlayTime
 import com.palmerintech.firetube.data.db.TrackPlays
 import com.palmerintech.firetube.extractor.Track
@@ -11,8 +14,11 @@ import java.time.temporal.WeekFields
 import java.util.Locale
 
 /** The periods Your stats can show; each runs from the start of the current week/month/year. */
-enum class StatsPeriod(val label: String) {
-    WEEK("This week"), MONTH("This month"), YEAR("This year"), ALL("All time");
+enum class StatsPeriod(@StringRes val label: Int, @StringRes val emptyTitle: Int) {
+    WEEK(R.string.stats_period_week, R.string.stats_empty_week),
+    MONTH(R.string.stats_period_month, R.string.stats_empty_month),
+    YEAR(R.string.stats_period_year, R.string.stats_empty_year),
+    ALL(R.string.stats_period_all, R.string.stats_empty_all);
 
     /** Epoch ms where this period starts, in the user's time zone and (for weeks) locale. */
     fun start(now: Instant, zone: ZoneId, locale: Locale = Locale.getDefault()): Long {
@@ -90,11 +96,11 @@ data class ListeningStats(
 }
 
 /** "3 h 25 min", "12 min", "45 sec". */
-fun formatListened(ms: Long): String {
+fun formatListened(res: Resources, ms: Long): String {
     val minutes = ms / 60_000
     return when {
-        minutes >= 60 -> "${minutes / 60} h ${minutes % 60} min"
-        minutes >= 1 -> "$minutes min"
-        else -> "${ms / 1000} sec"
+        minutes >= 60 -> res.getString(R.string.duration_hours_minutes, minutes / 60, minutes % 60)
+        minutes >= 1 -> res.getString(R.string.duration_minutes, minutes)
+        else -> (ms / 1000).let { res.getQuantityString(R.plurals.duration_seconds, it.toInt(), it) }
     }
 }

@@ -1,0 +1,321 @@
+<resources>
+    <!-- Shared actions and labels -->
+    <string name="action_back">Atrás</string>
+    <string name="action_cancel">Cancelar</string>
+    <string name="action_create">Crear</string>
+    <string name="action_delete">Eliminar</string>
+    <string name="action_save">Guardar</string>
+    <string name="action_open">Abrir</string>
+    <string name="action_more">Más</string>
+    <string name="action_retry">Reintentar</string>
+    <string name="action_try_again">Volver a intentar</string>
+    <string name="action_reorder">Reordenar</string>
+    <string name="action_add_to_playlist">Agregar a playlist</string>
+    <string name="action_add_favorite">Agregar a favoritos</string>
+    <string name="action_remove_favorite">Quitar de favoritos</string>
+    <string name="no_browser">No hay un navegador en este dispositivo. Visita %1$s</string>
+    <string name="error_offline">No tienes conexión.</string>
+    <string name="error_generic">Algo salió mal.</string>
+    <plurals name="song_count">
+        <item quantity="one">%1$d canción</item>
+        <item quantity="many">%1$d canciones</item>
+        <item quantity="other">%1$d canciones</item>
+    </plurals>
+    <plurals name="play_count">
+        <item quantity="one">%1$d reproducción</item>
+        <item quantity="many">%1$d reproducciones</item>
+        <item quantity="other">%1$d reproducciones</item>
+    </plurals>
+    <string name="duration_hours_minutes">%1$d h %2$d min</string>
+    <string name="duration_minutes">%1$d min</string>
+    <plurals name="duration_seconds">
+        <item quantity="one">%1$d s</item>
+        <item quantity="many">%1$d s</item>
+        <item quantity="other">%1$d s</item>
+    </plurals>
+
+    <!-- Navigation -->
+    <string name="nav_home">Inicio</string>
+    <string name="nav_search">Buscar</string>
+
+    <!-- Opening shared links and voice searches -->
+    <string name="link_search_not_found">No se encontró “%1$s”</string>
+    <string name="link_not_youtube">Ese enlace no es una canción de YouTube</string>
+    <string name="link_open_failed">No se pudo abrir ese video</string>
+
+    <!-- Home -->
+    <string name="home_update_available">FireTube %1$s está disponible</string>
+    <string name="home_update_tap">Toca para actualizar</string>
+    <string name="home_jump_back_in">Volver a escuchar</string>
+    <string name="home_because_you_played">Porque escuchaste %1$s</string>
+    <string name="home_your_playlists">Tus playlists</string>
+    <string name="home_trending">Tendencias</string>
+    <string name="home_trending_error">No se pudieron cargar las tendencias</string>
+
+    <!-- Support card on Home -->
+    <string name="support_card_title">¿Te gusta FireTube?</string>
+    <string name="support_card_body">Es gratis y no tiene anuncios. Si ya es parte de tu día, puedes ayudar a que siga adelante.</string>
+    <string name="support_card_support">Apoyar</string>
+    <string name="support_card_not_now">Ahora no</string>
+
+    <!-- Search -->
+    <string name="search_hint">Canciones, artistas o un enlace de YouTube</string>
+    <string name="search_clear">Borrar</string>
+    <string name="search_recent">Búsquedas recientes</string>
+    <string name="search_empty">Busca algo para escuchar</string>
+    <string name="search_empty_body">Busca una canción o un artista, o pega un enlace de YouTube.</string>
+    <string name="search_failed">Falló la búsqueda</string>
+    <string name="search_no_results">Sin resultados</string>
+    <string name="search_no_results_body">Prueba con otras palabras.</string>
+    <string name="search_filter_songs">Canciones</string>
+    <string name="search_filter_videos">Videos</string>
+    <string name="search_loading_track">Cargando…</string>
+
+    <!-- Library -->
+    <string name="library_title">Biblioteca</string>
+    <string name="library_favorites">Favoritos</string>
+    <string name="library_downloads">Descargas</string>
+    <plurals name="library_downloads_summary">
+        <item quantity="one">%1$d canción · escúchala sin conexión</item>
+        <item quantity="many">%1$d canciones · escúchalas sin conexión</item>
+        <item quantity="other">%1$d canciones · escúchalas sin conexión</item>
+    </plurals>
+    <string name="library_recently_played">Escuchado recientemente</string>
+    <string name="library_stats_summary">Canciones y artistas más escuchados, y tiempo de escucha</string>
+    <string name="library_playlists">Playlists</string>
+    <string name="library_no_playlists">Todavía no hay playlists</string>
+    <string name="library_no_playlists_body">Crea una o importa una playlist de YouTube.</string>
+    <string name="library_import_playlist">Importar una playlist de YouTube</string>
+    <string name="library_new_playlist">Nueva playlist</string>
+    <string name="library_import_title">Importar de YouTube</string>
+    <string name="library_import_link">Enlace de la playlist</string>
+    <string name="favorites_empty">Todavía no hay favoritos</string>
+    <string name="favorites_empty_body">Toca el corazón en el reproductor para guardar canciones aquí.</string>
+    <string name="history_empty">Todavía no escuchaste nada</string>
+    <string name="history_empty_body">Las canciones que escuches aparecerán aquí.</string>
+    <string name="history_clear">Borrar</string>
+    <string name="downloads_empty">No hay descargas</string>
+    <string name="downloads_empty_body">Descarga canciones desde su menú ⋮ para escucharlas sin conexión.</string>
+    <string name="download_failed">Error</string>
+    <string name="download_percent">%1$d%%</string>
+
+    <!-- Playlist -->
+    <string name="playlist_name">Nombre</string>
+    <string name="playlist_download_all">Descargar todo</string>
+    <string name="playlist_rename">Cambiar nombre</string>
+    <string name="playlist_rename_title">Cambiar nombre de la playlist</string>
+    <string name="playlist_delete">Eliminar playlist</string>
+    <string name="playlist_delete_title">¿Eliminar “%1$s”?</string>
+    <string name="playlist_delete_body">Se quitará la playlist de tu biblioteca. Las canciones no se verán afectadas.</string>
+    <string name="playlist_empty">Esta playlist está vacía</string>
+    <string name="playlist_empty_body">Agrega canciones desde la búsqueda con ⋮ → Agregar a playlist.</string>
+    <string name="playlist_remove_track">Quitar de la playlist</string>
+
+    <!-- YouTube playlist -->
+    <string name="remote_playlist_error">No se pudo abrir la playlist</string>
+    <string name="remote_playlist_save">Guardar en la biblioteca</string>
+    <string name="remote_playlist_saved">Se guardó en tu biblioteca</string>
+
+    <!-- Your stats -->
+    <string name="stats_title">Tus estadísticas</string>
+    <string name="stats_period_week">Esta semana</string>
+    <string name="stats_period_month">Este mes</string>
+    <string name="stats_period_year">Este año</string>
+    <string name="stats_period_all">Siempre</string>
+    <string name="stats_empty_week">No escuchaste nada esta semana</string>
+    <string name="stats_empty_month">No escuchaste nada este mes</string>
+    <string name="stats_empty_year">No escuchaste nada este año</string>
+    <string name="stats_empty_all">Todavía no hay estadísticas</string>
+    <string name="stats_empty_body">Escucha algo de música y tus estadísticas aparecerán aquí.</string>
+    <string name="stats_top_songs">Canciones más escuchadas</string>
+    <string name="stats_top_artists">Artistas más escuchados</string>
+    <string name="stats_when_you_listen">Cuándo escuchas</string>
+    <string name="stats_listening_time">Tiempo de escucha</string>
+    <string name="stats_plays">Reproducciones</string>
+    <string name="stats_busiest_hour">Hora de más escucha: %1$s</string>
+    <string name="stats_chart_description">Escucha por hora del día</string>
+    <string name="stats_chart_description_peak">Escucha por hora del día. Hora de más escucha: %1$s</string>
+
+    <!-- Track rows and the track menu -->
+    <string name="track_downloaded">Descargada</string>
+    <string name="track_more_options">Más opciones</string>
+    <string name="menu_play_next">Reproducir a continuación</string>
+    <string name="menu_playing_next">Se reproducirá a continuación</string>
+    <string name="menu_add_to_queue">Agregar a la fila</string>
+    <string name="menu_added_to_queue">Se agregó a la fila</string>
+    <string name="menu_start_radio">Iniciar radio</string>
+    <string name="menu_download">Descargar</string>
+    <string name="menu_downloading">Descargando</string>
+    <string name="menu_remove_download">Quitar descarga</string>
+    <string name="menu_cancel_download">Cancelar descarga</string>
+    <string name="menu_share">Compartir</string>
+    <string name="menu_added_to_playlist">Se agregó a %1$s</string>
+
+    <!-- Player (mini player and Now Playing) -->
+    <string name="player_play">Reproducir</string>
+    <string name="player_pause">Pausar</string>
+    <string name="player_next">Siguiente</string>
+    <string name="player_previous">Anterior</string>
+    <string name="player_next_track">Canción siguiente</string>
+    <string name="player_previous_track">Canción anterior</string>
+    <string name="player_shuffle">Aleatorio</string>
+    <string name="player_repeat">Repetir</string>
+    <string name="player_queue">Fila</string>
+    <string name="player_close">Cerrar reproductor</string>
+    <string name="player_now_playing">Reproduciendo</string>
+    <string name="player_speed_description">Velocidad de reproducción %1$s</string>
+
+    <!-- Chapters -->
+    <string name="chapters_title">Capítulos</string>
+    <string name="chapters_show">Mostrar capítulos</string>
+    <string name="chapters_jump">Ir a este capítulo</string>
+    <string name="chapter_position_description">Capítulo %1$d de %2$d: %3$s</string>
+    <string name="chapter_previous">Capítulo anterior</string>
+    <string name="chapter_next">Capítulo siguiente</string>
+
+    <!-- Queue -->
+    <string name="queue_title">A continuación</string>
+    <string name="queue_remove">Quitar de la fila</string>
+
+    <!-- Sleep timer -->
+    <string name="sleep_timer">Temporizador</string>
+    <string name="sleep_stops_at">Se detiene a las %1$s</string>
+    <string name="sleep_stops_end_of_song">Se detiene cuando termine esta canción</string>
+    <string name="sleep_minutes">%1$d min</string>
+    <string name="sleep_end_of_song">Fin de la canción</string>
+    <string name="sleep_custom">Personalizado: %1$d min</string>
+    <string name="sleep_start">Iniciar</string>
+    <string name="sleep_turn_off">Desactivar</string>
+
+    <!-- Playback speed -->
+    <string name="speed_title">Velocidad de reproducción</string>
+    <string name="speed_unsupported">Este dispositivo no permite cambiar la velocidad; reproduce a la suya.</string>
+    <string name="speed_custom">Personalizada: %1$s</string>
+
+    <!-- Lyrics -->
+    <string name="lyrics_title">Letra</string>
+    <string name="lyrics_source">Letras de LRCLIB</string>
+    <string name="lyrics_error">No se pudo cargar la letra en este momento.</string>
+    <string name="lyrics_instrumental">Esta canción es instrumental.</string>
+    <string name="lyrics_not_found">No se encontró la letra de esta canción.</string>
+    <string name="lyrics_jump_to_line">Ir a esta línea</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Configuración</string>
+    <string name="settings_group_playback">Reproducción</string>
+    <string name="settings_autoplay">Reproducción automática</string>
+    <string name="settings_autoplay_summary">Sigue reproduciendo canciones similares cuando termina la fila</string>
+    <string name="settings_sponsorblock">Omitir partes sin música</string>
+    <string name="settings_sponsorblock_summary">Omite intros, charlas y patrocinios (SponsorBlock)</string>
+    <string name="settings_volume_leveling">Igualar el volumen</string>
+    <string name="settings_volume_leveling_summary">Mantiene las canciones fuertes y suaves a un nivel similar</string>
+    <string name="settings_data_saver">Ahorro de datos</string>
+    <string name="settings_data_saver_summary">Transmite audio con menor tasa de bits</string>
+    <string name="settings_group_audio">Audio</string>
+    <string name="settings_equalizer">Ecualizador</string>
+    <string name="settings_bass_boost">Refuerzo de graves</string>
+    <string name="settings_off">Desactivado</string>
+    <string name="settings_percent">%1$d%%</string>
+    <string name="settings_crossfade">Transición</string>
+    <string name="settings_crossfade_off_summary">Desactivada: las canciones suenan una tras otra</string>
+    <string name="settings_crossfade_summary">Funde las canciones durante %1$d s</string>
+    <plurals name="settings_crossfade_seconds">
+        <item quantity="one">%1$d segundo</item>
+        <item quantity="many">%1$d segundos</item>
+        <item quantity="other">%1$d segundos</item>
+    </plurals>
+    <string name="settings_group_appearance">Apariencia</string>
+    <string name="settings_theme">Tema</string>
+    <string name="settings_dynamic_color">Colores del fondo de pantalla</string>
+    <string name="settings_dynamic_color_summary">Adapta los colores de FireTube a tu fondo de pantalla</string>
+    <string name="settings_group_storage">Almacenamiento</string>
+    <string name="settings_song_cache">Caché de canciones</string>
+    <string name="settings_song_cache_summary">%1$d MB · las canciones recientes se vuelven a escuchar sin usar datos</string>
+    <string name="settings_cache_size">%1$d MB</string>
+    <string name="settings_cache_restart">Se aplicará cuando se reinicie FireTube</string>
+    <string name="settings_clear_cache">Borrar caché</string>
+    <string name="settings_clear_cache_summary">Las descargas se conservan</string>
+    <string name="settings_cache_cleared">Se borró la caché</string>
+    <string name="settings_group_account">Cuenta</string>
+    <string name="settings_sign_in">Acceder con Google</string>
+    <string name="settings_sign_in_summary">Sincroniza playlists y favoritos entre tus dispositivos</string>
+    <string name="settings_sign_in_failed">No se pudo acceder: %1$s</string>
+    <string name="sign_in_no_account">No hay ninguna Cuenta de Google en este dispositivo</string>
+    <string name="settings_sync_now">Sincronizar ahora</string>
+    <string name="settings_sign_out">Salir</string>
+    <string name="settings_sign_out_summary">Tu biblioteca se queda en este dispositivo</string>
+    <string name="sync_status_idle">Todavía no se sincronizó</string>
+    <string name="sync_status_syncing">Sincronizando…</string>
+    <string name="sync_status_done">Sincronizado: %1$s</string>
+    <string name="sync_status_failed">Error de sincronización: %1$s</string>
+    <string name="sync_status_failed_no_detail">Error de sincronización</string>
+    <string name="settings_group_privacy">Privacidad</string>
+    <string name="settings_crash_reports">Enviar informes de fallas</string>
+    <string name="settings_crash_reports_summary">Los detalles de las fallas (sin datos personales) ayudan a corregir errores (Firebase Crashlytics)</string>
+    <string name="settings_group_backup">Copia de seguridad</string>
+    <string name="settings_export">Exportar biblioteca</string>
+    <string name="settings_export_summary">Guarda playlists y favoritos en un archivo</string>
+    <string name="settings_library_exported">Se exportó la biblioteca</string>
+    <string name="settings_export_failed">No se pudo exportar: %1$s</string>
+    <string name="settings_import">Importar biblioteca</string>
+    <string name="settings_import_summary">Restaura desde una copia de seguridad de FireTube</string>
+    <plurals name="settings_imported_playlists">
+        <item quantity="one">Se importó %1$d playlist</item>
+        <item quantity="many">Se importaron %1$d playlists</item>
+        <item quantity="other">Se importaron %1$d playlists</item>
+    </plurals>
+    <string name="settings_import_failed">No se pudo importar: %1$s</string>
+    <string name="settings_import_not_backup">No se pudo importar: no es una copia de seguridad de FireTube</string>
+    <string name="settings_group_updates">Actualizaciones</string>
+    <string name="settings_check_updates">Buscar actualizaciones</string>
+    <string name="settings_checking">Buscando…</string>
+    <string name="settings_version">Versión %1$s</string>
+    <string name="settings_up_to_date">Tienes la versión más reciente</string>
+    <string name="settings_group_about">Acerca de</string>
+    <string name="settings_about_summary">Gratis y sin anuncios</string>
+    <string name="settings_group_support">Apoya a FireTube</string>
+    <string name="settings_tip">Dejar una propina</string>
+    <string name="settings_tip_summary">FireTube es gratis y no tiene anuncios; las propinas lo mantienen en marcha</string>
+    <string name="settings_source_code">Código fuente</string>
+    <string name="settings_source_code_summary">FireTube es de código abierto (GPLv3)</string>
+    <string name="settings_disclaimer">FireTube no está afiliado a YouTube ni a Google. Usa NewPipeExtractor (GPLv3), Media3 y SponsorBlock.</string>
+    <string name="theme_system">Predeterminado del sistema</string>
+    <string name="theme_light">Claro</string>
+    <string name="theme_dark">Oscuro</string>
+    <string name="equalizer_flat">Desactivado (plano)</string>
+    <string name="equalizer_bass">Refuerzo de graves</string>
+    <string name="equalizer_treble">Refuerzo de agudos</string>
+    <string name="equalizer_vocal">Voz</string>
+    <string name="equalizer_rock">Rock</string>
+    <string name="equalizer_pop">Pop</string>
+    <string name="equalizer_classical">Clásica</string>
+
+    <!-- App updates -->
+    <string name="update_title">¿Actualizar a %1$s?</string>
+    <string name="update_default_notes">Hay una nueva versión de FireTube disponible.</string>
+    <string name="update_confirm">Actualizar</string>
+    <string name="update_later">Más tarde</string>
+    <string name="update_allow_install">Permite que FireTube instale actualizaciones y vuelve a intentarlo</string>
+    <string name="update_failed">No se pudo actualizar: %1$s</string>
+    <string name="update_channel">Actualizaciones de la app</string>
+    <string name="update_ready_title">La actualización de FireTube está lista</string>
+    <string name="update_ready_text">Toca para terminar la instalación</string>
+
+    <!-- Downloads notification channel -->
+    <string name="downloads_channel">Descargas</string>
+
+    <!-- Android Auto / media browser -->
+    <string name="auto_trending">Tendencias</string>
+
+    <!-- Home-screen widget -->
+    <string name="widget_description">Lo que se está reproduciendo, con reproducir/pausar y saltar</string>
+    <string name="widget_tap_to_start">Toca para empezar</string>
+    <string name="widget_empty_description">%1$s. Toca para empezar</string>
+    <string name="widget_song_description">%1$s de %2$s. Abre Reproduciendo</string>
+    <string name="widget_song_description_no_artist">%1$s. Abre Reproduciendo</string>
+    <string name="widget_preview_subtitle">Reproduciendo</string>
+    <string name="widget_play">Reproducir</string>
+    <string name="widget_pause">Pausar</string>
+    <string name="widget_next">Siguiente</string>
+    <string name="widget_previous">Anterior</string>
+</resources>

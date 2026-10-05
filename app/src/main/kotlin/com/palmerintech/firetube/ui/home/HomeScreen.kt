@@ -57,12 +57,14 @@ import com.palmerintech.firetube.ui.components.TrackCard
 import com.palmerintech.firetube.ui.components.TrackRow
 import androidx.compose.foundation.Image
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import com.palmerintech.firetube.R
+import com.palmerintech.firetube.ui.message
 
 @UnstableApi
 @OptIn(ExperimentalMaterial3Api::class)
@@ -82,6 +84,7 @@ fun HomeScreen(
     val update by vm.update.collectAsStateWithLifecycle()
     val showSupport by vm.showSupportCard.collectAsStateWithLifecycle()
     val context = androidx.compose.ui.platform.LocalContext.current
+    val resources = androidx.compose.ui.platform.LocalResources.current
     val player = container.player
     val menu = LocalTrackMenu.current
 
@@ -105,7 +108,7 @@ fun HomeScreen(
             },
             actions = {
                 CastButton(container.castAvailable)
-                IconButton(onClick = onOpenSettings) { Icon(Icons.Default.Settings, "Settings") }
+                IconButton(onClick = onOpenSettings) { Icon(Icons.Default.Settings, stringResource(R.string.settings_title)) }
             },
         )
         LazyColumn(contentPadding = contentPadding) {
@@ -118,8 +121,8 @@ fun HomeScreen(
                         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.SystemUpdate, null)
                             Column(Modifier.padding(start = 16.dp)) {
-                                Text("FireTube ${u.versionName} is available", fontWeight = FontWeight.SemiBold)
-                                Text("Tap to update", style = MaterialTheme.typography.bodySmall)
+                                Text(stringResource(R.string.home_update_available, u.versionName), fontWeight = FontWeight.SemiBold)
+                                Text(stringResource(R.string.home_update_tap), style = MaterialTheme.typography.bodySmall)
                             }
                         }
                     }
@@ -130,7 +133,7 @@ fun HomeScreen(
                 item {
                     SupportCard(
                         onSupport = {
-                            Support.donateUrl?.let { url -> if (!context.openUrl(url)) onShowMessage("No browser on this device \u2014 visit $url") }
+                            Support.donateUrl?.let { url -> if (!context.openUrl(url)) onShowMessage(resources.getString(R.string.no_browser, url)) }
                             vm.dismissSupportCard()
                         },
                         onDismiss = vm::dismissSupportCard,
@@ -139,7 +142,7 @@ fun HomeScreen(
             }
 
             if (recent.isNotEmpty()) {
-                item { SectionHeader("Jump back in") }
+                item { SectionHeader(stringResource(R.string.home_jump_back_in)) }
                 item {
                     LazyRow(contentPadding = PaddingValues(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         itemsIndexed(recent, key = { _, t -> t.id }) { i, t ->
@@ -150,7 +153,7 @@ fun HomeScreen(
             }
 
             forYou?.let { (seed, related) ->
-                item { SectionHeader("Because you played ${seed.title}", maxLines = 1) }
+                item { SectionHeader(stringResource(R.string.home_because_you_played, seed.title), maxLines = 1) }
                 item {
                     LazyRow(contentPadding = PaddingValues(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         itemsIndexed(related, key = { _, t -> t.id }) { i, t ->
@@ -161,7 +164,7 @@ fun HomeScreen(
             }
 
             if (playlists.isNotEmpty()) {
-                item { SectionHeader("Your playlists") }
+                item { SectionHeader(stringResource(R.string.home_your_playlists)) }
                 item {
                     LazyRow(contentPadding = PaddingValues(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(playlists, key = { it.id }) { p ->
@@ -169,7 +172,7 @@ fun HomeScreen(
                                 Artwork(p.thumbnailUrl, 140.dp, corner = 12.dp)
                                 Text(p.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium,
                                     maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
-                                Text("${p.trackCount} songs", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(pluralStringResource(R.plurals.song_count, p.trackCount, p.trackCount), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }
@@ -177,9 +180,9 @@ fun HomeScreen(
             }
 
             item {
-                SectionHeader("Trending now") {
+                SectionHeader(stringResource(R.string.home_trending)) {
                     val list = (trending as? Load.Ready)?.value
-                    if (!list.isNullOrEmpty()) TextButton(onClick = { player.play(list, shuffle = true) }) { Text("Shuffle") }
+                    if (!list.isNullOrEmpty()) TextButton(onClick = { player.play(list, shuffle = true) }) { Text(stringResource(R.string.player_shuffle)) }
                 }
             }
             when (val t = trending) {
@@ -187,7 +190,7 @@ fun HomeScreen(
                     Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
                 }
                 is Load.Failed -> item {
-                    EmptyState(Icons.Default.CloudOff, "Couldn't load trending", t.message, actionLabel = "Retry", onAction = vm::refresh)
+                    EmptyState(Icons.Default.CloudOff, stringResource(R.string.home_trending_error), t.message, actionLabel = stringResource(R.string.action_retry), onAction = vm::refresh)
                 }
                 is Load.Ready -> itemsIndexed(t.value.take(50), key = { _, tr -> "trend-" + tr.id }) { i, tr ->
                     TrackRow(tr, onClick = { player.play(t.value, i) }, onMore = { menu.open(tr) })

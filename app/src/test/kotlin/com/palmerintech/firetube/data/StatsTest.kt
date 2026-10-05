@@ -112,11 +112,4 @@ class StatsTest {
         assertTrue(stats.isEmpty)
         assertTrue(stats.topSongs.isEmpty() && stats.topArtists.isEmpty())
     }
-
-    @Test
-    fun listenedTimeFormat() {
-        assertEquals("45 sec", formatListened(45_000))
-        assertEquals("12 min", formatListened(12 * 60_000L + 59_000))
-        assertEquals("3 h 25 min", formatListened((3 * 60 + 25) * 60_000L))
-    }
 }

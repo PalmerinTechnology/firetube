@@ -26,6 +26,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import com.palmerintech.firetube.R
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
@@ -67,7 +69,7 @@ internal fun ChaptersSheet(
         }
         Column(Modifier.fillMaxHeight(0.9f).navigationBarsPadding()) {
             Column(Modifier.padding(horizontal = 16.dp)) {
-                Text("Chapters", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.chapters_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Text(
                     title, style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -83,7 +85,7 @@ internal fun ChaptersSheet(
                             .then(if (isCurrent) Modifier.focusRequester(currentFocus) else Modifier)
                             .focusRing(shape)
                             .clip(shape)
-                            .clickable(onClickLabel = "Jump to this chapter") { onSeek(chapter.startMs) }
+                            .clickable(onClickLabel = stringResource(R.string.chapters_jump)) { onSeek(chapter.startMs) }
                             .semantics { selected = isCurrent }
                             .padding(horizontal = 8.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,

@@ -37,6 +37,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -45,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.util.UnstableApi
 import com.palmerintech.firetube.AppContainer
+import com.palmerintech.firetube.R
 import com.palmerintech.firetube.data.ArtistStats
 import com.palmerintech.firetube.data.ListeningStats
 import com.palmerintech.firetube.data.StatsPeriod
@@ -73,8 +77,8 @@ fun StatsScreen(container: AppContainer, onBack: () -> Unit, contentPadding: Pad
 
     Column {
         TopAppBar(
-            title = { Text("Your stats") },
-            navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
+            title = { Text(stringResource(R.string.stats_title)) },
+            navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back)) } },
         )
         LazyColumn(contentPadding = contentPadding) {
             item {
@@ -83,7 +87,7 @@ fun StatsScreen(container: AppContainer, onBack: () -> Unit, contentPadding: Pad
                         FilterChip(
                             selected = p == period,
                             onClick = { vm.period.value = p },
-                            label = { Text(p.label) },
+                            label = { Text(stringResource(p.label), maxLines = 1) },
                             modifier = Modifier.focusRing(RoundedCornerShape(8.dp)),
                         )
                     }
@@ -97,13 +101,13 @@ fun StatsScreen(container: AppContainer, onBack: () -> Unit, contentPadding: Pad
                 s.isEmpty -> item {
                     EmptyState(
                         Icons.Default.BarChart,
-                        if (period == StatsPeriod.ALL) "No stats yet" else "Nothing played ${period.label.lowercase()}",
-                        "Play some music and your stats will show up here.",
+                        stringResource(period.emptyTitle),
+                        stringResource(R.string.stats_empty_body),
                     )
                 }
                 else -> {
                     item { Totals(s) }
-                    item { SectionHeader("Top songs") }
+                    item { SectionHeader(stringResource(R.string.stats_top_songs)) }
                     itemsIndexed(s.topSongs, key = { _, it -> "song:" + it.track.id }) { i, song ->
                         TrackRow(
                             song.track,
@@ -114,12 +118,12 @@ fun StatsScreen(container: AppContainer, onBack: () -> Unit, contentPadding: Pad
                         )
                     }
                     if (s.topArtists.isNotEmpty()) {
-                        item { SectionHeader("Top artists") }
+                        item { SectionHeader(stringResource(R.string.stats_top_artists)) }
                         itemsIndexed(s.topArtists, key = { _, it -> "artist:" + it.name }) { i, artist ->
                             ArtistRow(i, artist, onClick = { container.player.play(artist.tracks) })
                         }
                     }
-                    item { SectionHeader("When you listen") }
+                    item { SectionHeader(stringResource(R.string.stats_when_you_listen)) }
                     item { HourChart(s.byHour) }
                 }
             }
@@ -129,9 +133,10 @@ fun StatsScreen(container: AppContainer, onBack: () -> Unit, contentPadding: Pad
 
 @Composable
 private fun Totals(s: ListeningStats) {
+    val res = LocalResources.current
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        StatTile("Listening time", formatListened(s.msListened), Modifier.weight(1f))
-        StatTile("Plays", s.plays.toString(), Modifier.weight(1f))
+        StatTile(stringResource(R.string.stats_listening_time), formatListened(res, s.msListened), Modifier.weight(1f))
+        StatTile(stringResource(R.string.stats_plays), s.plays.toString(), Modifier.weight(1f))
     }
 }
 
@@ -140,7 +145,7 @@ private fun StatTile(label: String, value: String, modifier: Modifier = Modifier
     Column(
         modifier.clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh).padding(16.dp),
     ) {
-        Text(label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
@@ -158,7 +163,7 @@ private fun Rank(index: Int) {
 @Composable
 private fun PlayCount(plays: Int) {
     Text(
-        if (plays == 1) "1 play" else "$plays plays",
+        pluralStringResource(R.plurals.play_count, plays, plays),
         style = MaterialTheme.typography.labelMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(start = 8.dp),
@@ -178,7 +183,7 @@ private fun ArtistRow(index: Int, artist: ArtistStats, onClick: () -> Unit) {
         Column(Modifier.weight(1f)) {
             Text(artist.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
-                formatListened(artist.msListened),
+                formatListened(LocalResources.current, artist.msListened),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
@@ -197,7 +202,8 @@ private fun HourChart(byHour: List<Long>) {
     val hourFormat = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)
     val hour = { h: Int -> LocalTime.of(h, 0).format(hourFormat) }
     Column(Modifier.padding(horizontal = 16.dp)) {
-        val busiest = peak?.let { "Most around ${hour(it)}" }
+        val busiest = peak?.let { stringResource(R.string.stats_busiest_hour, hour(it)) }
+        val chartDescription = if (peak == null) stringResource(R.string.stats_chart_description) else stringResource(R.string.stats_chart_description_peak, hour(peak))
         if (busiest != null) {
             Text(
                 busiest,
@@ -208,7 +214,7 @@ private fun HourChart(byHour: List<Long>) {
         }
         Canvas(
             Modifier.fillMaxWidth().height(96.dp).semantics {
-                contentDescription = listOfNotNull("Listening by hour of day", busiest?.lowercase()).joinToString(", ")
+                contentDescription = chartDescription
             },
         ) {
             val gap = 3.dp.toPx()

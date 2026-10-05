@@ -23,10 +23,13 @@ class Backup(private val library: LibraryRepository) {
     suspend fun import(input: InputStream): Int {
         val text = withContext(Dispatchers.IO) { input.use { it.readBytes().decodeToString() } }
         val file = json.decodeFromString(File.serializer(), text)
-        require(file.format == FORMAT) { "Not a FireTube backup" }
+        if (file.format != FORMAT) throw NotABackupException()
         library.mergeSnapshots(file.playlists)
         return file.playlists.size
     }
+
+    /** The file is JSON, but not a FireTube backup. */
+    class NotABackupException : IllegalArgumentException("Not a FireTube backup")
 
     private companion object {
         const val FORMAT = "firetube-backup"

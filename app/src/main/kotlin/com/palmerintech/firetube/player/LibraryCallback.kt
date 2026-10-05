@@ -12,6 +12,7 @@ import androidx.media3.session.SessionError
 import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.ListenableFuture
 import com.palmerintech.firetube.AppContainer
+import com.palmerintech.firetube.R
 import com.palmerintech.firetube.extractor.SearchResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.first
@@ -77,7 +78,7 @@ class LibraryCallback(
         browser: MediaSession.ControllerInfo,
         params: LibraryParams?,
     ): ListenableFuture<LibraryResult<MediaItem>> =
-        scope.future { LibraryResult.ofItem(folder(ROOT, "FireTube"), params) }
+        scope.future { LibraryResult.ofItem(folder(ROOT, container.app.getString(R.string.app_name)), params) }
 
     override fun onGetItem(
         session: MediaLibrarySession,
@@ -100,10 +101,10 @@ class LibraryCallback(
         val lib = container.library
         val items: List<MediaItem> = when {
             parentId == ROOT -> listOf(
-                folder(RECENT, "Recently played"),
-                folder(FAVORITES, "Favorites"),
-                folder(PLAYLISTS, "Playlists"),
-                folder(TRENDING, "Trending"),
+                folder(RECENT, container.app.getString(R.string.library_recently_played)),
+                folder(FAVORITES, container.app.getString(R.string.library_favorites)),
+                folder(PLAYLISTS, container.app.getString(R.string.library_playlists)),
+                folder(TRENDING, container.app.getString(R.string.auto_trending)),
             )
             parentId == RECENT -> lib.recentOnce(50).map(MediaItems::of)
             parentId == FAVORITES -> lib.favorites.first().map(MediaItems::of)

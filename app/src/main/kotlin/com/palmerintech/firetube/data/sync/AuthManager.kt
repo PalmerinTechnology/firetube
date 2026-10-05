@@ -14,6 +14,7 @@ import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.auth
+import com.palmerintech.firetube.R
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.tasks.await
@@ -53,7 +54,7 @@ class AuthManager(context: Context) {
         val credential = try {
             CredentialManager.create(activityContext).getCredential(activityContext, request).credential
         } catch (e: NoCredentialException) {
-            throw IllegalStateException("No Google account on this device", e)
+            throw IllegalStateException(activityContext.getString(R.string.sign_in_no_account), e)
         }
         require(credential is CustomCredential && credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
             "Unexpected credential type"

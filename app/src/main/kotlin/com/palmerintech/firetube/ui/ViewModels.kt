@@ -1,11 +1,13 @@
 package com.palmerintech.firetube.ui
 
+import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -14,6 +16,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.media3.common.util.UnstableApi
 import com.palmerintech.firetube.AppContainer
 import com.palmerintech.firetube.FireTubeApp
+import com.palmerintech.firetube.R
 import com.palmerintech.firetube.Support
 import com.palmerintech.firetube.data.ListeningStats
 import com.palmerintech.firetube.data.StatsPeriod
@@ -66,12 +69,17 @@ val SearchResult.stableKey: String
 sealed interface Load<out T> {
     data object Loading : Load<Nothing>
     data class Ready<T>(val value: T) : Load<T>
-    data class Failed(val message: String) : Load<Nothing>
+    /** [reason] is shown, unless there's a [detail] (the error's own, untranslated, message). */
+    data class Failed(@StringRes val reason: Int, val detail: String? = null) : Load<Nothing>
 }
 
-private fun Throwable.friendly(): String = when {
-    message?.contains("Unable to resolve host", true) == true -> "You're offline."
-    else -> message?.takeIf { it.length < 140 } ?: "Something went wrong."
+/** What a [Load.Failed] tells the user. */
+val Load.Failed.message: String
+    @Composable get() = detail ?: stringResource(reason)
+
+private fun Throwable.friendly(): Load.Failed = when {
+    message?.contains("Unable to resolve host", true) == true -> Load.Failed(R.string.error_offline)
+    else -> Load.Failed(R.string.error_generic, message?.takeIf { it.length < 140 })
 }
 
 // ---------------------------------------------------------------- Home
@@ -121,7 +129,7 @@ class HomeViewModel(private val c: AppContainer) : ViewModel() {
         viewModelScope.launch {
             _trending.value = Load.Loading
             _trending.value = runCatching { c.source.trending() }
-                .fold({ Load.Ready(it) }, { Load.Failed(it.friendly()) })
+                .fold({ Load.Ready(it) }, { it.friendly() })
         }
     }
 }
@@ -192,7 +200,7 @@ class SearchViewModel(private val c: AppContainer) : ViewModel() {
         searchJob = viewModelScope.launch {
             _results.value = Load.Loading
             _results.value = runCatching { c.source.search(q, filter.value) }
-                .fold({ Load.Ready(Results(it.items.distinctBy { r -> r.stableKey }, it.next)) }, { Load.Failed(it.friendly()) })
+                .fold({ Load.Ready(Results(it.items.distinctBy { r -> r.stableKey }, it.next)) }, { it.friendly() })
         }
     }
 
@@ -265,7 +273,7 @@ class RemotePlaylistViewModel(private val c: AppContainer, val url: String) : Vi
     fun load() = viewModelScope.launch {
         _state.value = Load.Loading
         _state.value = runCatching { c.source.playlist(url) }
-            .fold({ (s, page) -> Load.Ready(State(s, page.items, page.next)) }, { Load.Failed(it.friendly()) })
+            .fold({ (s, page) -> Load.Ready(State(s, page.items, page.next)) }, { it.friendly() })
     }
 
     fun loadMore() {
