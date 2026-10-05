@@ -18,10 +18,25 @@ object TitleCleaner {
     private val bracketed = Regex("""\s*[(\[{【]([^)\]}】]*)[)\]}】]""")
     private val feat = Regex("""\s*[(\[]?\s*\b(ft|feat|featuring)\b\.?\s.*?(?=[)\]]|\s[-–—]\s|$)[)\]]?""", RegexOption.IGNORE_CASE)
     private val trailingNoise = Regex(
-        """\s*[-–—|:]?\s*\b(official\s+(music\s+)?(video|audio|lyric video|visuali[sz]er)|(lyric|music)\s+video|lyrics|audio)\s*$""",
+        """\s*[-–—|:]?\s*\b(official\s+(music\s+)?(video|audio|lyric video|visuali[sz]er|m/?v)|(lyric|music)\s+video|lyrics|audio|m/?v)\s*$""",
         RegexOption.IGNORE_CASE,
     )
     private val dash = Regex("""\s+[-–—]\s+""")
+    /**
+     * A quoted song name after the artist: "BTS 'Dynamite'", "IU「Palette」". A Latin quote must
+     * follow a space and open on a non-space, so "Guns N' Roses" and "Rock 'n' Roll" don't count.
+     */
+    private val quoted = Regex("""^(.+?)(?:\s+['‘"“](\S.*?)['’"”]|\s*[「『](.+?)[」』])(.*)$""")
+    /** "BTS (방탄소년단)": one name in two scripts. */
+    private val twoScripts = Regex("""^(.+?)\s*[(（]([^()（）]+)[)）]$""")
+    /**
+     * Channels that post other artists' songs: labels ("HYBE LABELS", "Atlantic Records") and
+     * lyric channels ("7clouds", "Vibe Music", "Lyrics Hub"). Their name is never the artist.
+     */
+    private val labelChannel = Regex(
+        """\b(labels?|records|recordings|music|lyrics?|vibes?|entertainment)\b|7clouds""",
+        RegexOption.IGNORE_CASE,
+    )
     private val quotes = Regex("""^["“”'‘’]+|["“”'‘’]+$""")
     private val topic = Regex("""\s*-\s*Topic$""", RegexOption.IGNORE_CASE)
     private val marks = Regex("""\p{Mn}+""")
@@ -65,13 +80,27 @@ object TitleCleaner {
         val out = mutableListOf<LyricsQuery>()
         val parts = name.split(dash, limit = 2)
         // YouTube Music's auto-generated "Artist - Topic" uploads are titled with just the song
-        // name, so a dash in them is part of it.
-        if (!topic.containsMatchIn(channel.trim()) && parts.size == 2 && parts[0].isNotBlank() && parts[1].isNotBlank()) {
+        // name, so a dash or quote in them is part of it.
+        val isTopic = topic.containsMatchIn(channel.trim())
+        // A label's or lyric channel's name isn't the artist: only the title says who it is.
+        val isLabel = !isTopic && labelChannel.containsMatchIn(channel)
+        val quotedSong = if (isTopic) null else quotedSong(title)
+        if (quotedSong != null) {
+            out += quotedSong
+            // On an artist's own channel the quotes might be part of the name after all.
+            if (!isLabel) out += listOf(LyricsQuery(artist, quotedSong.title), LyricsQuery(artist, name))
+        } else if (!isTopic && parts.size == 2 && parts[0].isNotBlank() && parts[1].isNotBlank()) {
             val (left, right) = parts.map { tidy(it) }
-            // Usually "Artist - Song", but some channels post "Song - Artist".
-            val swapped = artist.isNotEmpty() && sameName(right, artist) && !sameName(left, artist)
-            out += if (swapped) LyricsQuery(right, left) else LyricsQuery(left, right)
-            out += LyricsQuery(artist, if (swapped) left else right)
+            if (isLabel) {
+                // Usually "Artist - Song", but some lyric channels post "Song - Artist".
+                out += LyricsQuery(titleArtist(left), right)
+                out += LyricsQuery(titleArtist(right), left)
+            } else {
+                // The same, told apart by the channel.
+                val swapped = artist.isNotEmpty() && sameName(right, artist) && !sameName(left, artist)
+                out += if (swapped) LyricsQuery(right, left) else LyricsQuery(titleArtist(left), right)
+                out += LyricsQuery(artist, if (swapped) left else right)
+            }
         } else {
             out += LyricsQuery(artist, name)
         }
@@ -177,6 +206,36 @@ object TitleCleaner {
     }
 
     private fun keepsVersion(label: String) = words(label).any { it in keptVersionWords }
+
+    /**
+     * "BTS (방탄소년단) 'Dynamite' Official MV" → BTS, Dynamite: an artist, then the song in quotes
+     * with nothing but packaging after it. Null when the title isn't shaped like that.
+     */
+    private fun quotedSong(title: String): LyricsQuery? {
+        val m = quoted.matchEntire(feat.replace(title, "").trim()) ?: return null
+        val song = cleanTitle(m.groupValues[2].ifEmpty { m.groupValues[3] })
+        val artist = titleArtist(m.groupValues[1])
+        // "Artist - Song 'Live at X'": the dash split knows better.
+        if (dash.containsMatchIn(artist)) return null
+        if (cleanTitle(m.groupValues[4]).isNotEmpty() || song.isEmpty() || artist.isEmpty()) return null
+        return LyricsQuery(artist, song)
+    }
+
+    /**
+     * An artist named in a title, as LRCLIB most likely lists it: of a name given in two scripts,
+     * "BTS (방탄소년단)" or "아이유 (IU)", the Latin one.
+     */
+    private fun titleArtist(name: String): String {
+        val a = tidy(name)
+        val m = twoScripts.matchEntire(a) ?: return a
+        val (outside, inside) = m.destructured.toList().map(::tidy)
+        val latin = listOf(outside, inside).filter(::isLatin)
+        // Both Latin ("Prince (The Artist)") or neither: not a transliteration, leave it.
+        return if (latin.size == 1) latin.single() else a
+    }
+
+    private fun isLatin(s: String) = s.any { it.isLetter() } &&
+        s.filter { it.isLetter() }.all { Character.UnicodeScript.of(it.code) == Character.UnicodeScript.LATIN }
 
     private fun primaryArtist(artist: String): String? {
         val first = artist.split(Regex("""\s*(,|&|\band\b|\bx\b|\bvs\.?|\bwith\b)\s*""", RegexOption.IGNORE_CASE), limit = 2)
