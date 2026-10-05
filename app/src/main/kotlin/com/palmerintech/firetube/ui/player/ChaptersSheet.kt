@@ -23,6 +23,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -57,10 +58,13 @@ internal fun ChaptersSheet(
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = (current - 1).coerceAtLeast(0))
     val currentFocus = remember { FocusRequester() }
     val shape = RoundedCornerShape(12.dp)
-    // D-pad users start on the playing chapter (a no-op in touch mode).
-    LaunchedEffect(Unit) { runCatching { currentFocus.requestFocus() } }
-
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        // D-pad users start on the playing chapter (a no-op in touch mode). Inside the sheet: it
+        // has its own window, and the row must be laid out (one frame) before it can take focus.
+        LaunchedEffect(Unit) {
+            withFrameNanos { }
+            runCatching { currentFocus.requestFocus() }
+        }
         Column(Modifier.fillMaxHeight(0.9f).navigationBarsPadding()) {
             Column(Modifier.padding(horizontal = 16.dp)) {
                 Text("Chapters", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
@@ -111,7 +115,8 @@ internal fun Modifier.chapterTicks(
     value: () -> Float,
     active: Color,
     inactive: Color,
-    thumbGap: Dp = 6.dp,
+    // Material 3's slider leaves 6dp either side of its 4dp-wide thumb: 8dp from the thumb's centre.
+    thumbGap: Dp = 8.dp,
 ): Modifier = if (chapters.size < 2 || durationMs <= 0) this else drawWithContent {
     drawContent()
     val at = value()

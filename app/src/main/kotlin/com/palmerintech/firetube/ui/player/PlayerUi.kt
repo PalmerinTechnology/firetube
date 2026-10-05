@@ -335,8 +335,10 @@ fun NowPlayingScreen(
     var showChapters by remember { mutableStateOf(false) }
     var scrubbing by remember { mutableStateOf<Float?>(null) }
     // Long videos (mixes, full albums): known once the track has been resolved for playback.
-    val chapters by remember(track.id) { container.resolver.chapters(track.id) }.collectAsState(emptyList())
-    LaunchedEffect(chapters.isEmpty()) { if (chapters.isEmpty()) showChapters = false }
+    // null until the new track's chapters are known, so an open sheet doesn't flicker shut on a track change.
+    val loadedChapters by remember(track.id) { container.resolver.chapters(track.id) }.collectAsState(null)
+    val chapters = loadedChapters.orEmpty()
+    LaunchedEffect(loadedChapters) { if (loadedChapters?.isEmpty() == true) showChapters = false }
 
     BackHandler(enabled = sheet.expanded, onBack = onClose)
 
