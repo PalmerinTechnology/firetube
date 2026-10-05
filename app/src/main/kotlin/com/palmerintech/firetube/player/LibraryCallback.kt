@@ -12,14 +12,15 @@ import androidx.media3.session.SessionError
 import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.ListenableFuture
 import com.palmerintech.firetube.AppContainer
+import com.palmerintech.firetube.R
 import com.palmerintech.firetube.extractor.SearchResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.guava.future
 
 /**
- * The browse tree for Android Auto and other media browsers, plus rebuilding play URIs for items
- * that arrive from other processes.
+ * The browse tree for Android Auto and other media browsers, rebuilding play URIs for items
+ * that arrive from other processes, and resuming the saved queue.
  */
 @UnstableApi
 class LibraryCallback(
@@ -52,12 +53,32 @@ class LibraryCallback(
         }
     }
 
+    /**
+     * Set once play was pressed on an empty player and the saved queue is being resumed here;
+     * PlaybackService's own restore then stands down, so the queue is only applied once.
+     */
+    var resuming = false
+        private set
+
+    /**
+     * Play pressed while the player is empty — e.g. on the home-screen widget after FireTube was
+     * closed, before the service's own restore has finished: pick up the saved queue.
+     */
+    override fun onPlaybackResumption(
+        mediaSession: MediaSession,
+        controller: MediaSession.ControllerInfo,
+        isForPlayback: Boolean,
+    ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+        if (isForPlayback) resuming = true
+        return scope.future { resumptionOf(container.queueStore.load()) }
+    }
+
     override fun onGetLibraryRoot(
         session: MediaLibrarySession,
         browser: MediaSession.ControllerInfo,
         params: LibraryParams?,
     ): ListenableFuture<LibraryResult<MediaItem>> =
-        scope.future { LibraryResult.ofItem(folder(ROOT, "FireTube"), params) }
+        scope.future { LibraryResult.ofItem(folder(ROOT, container.app.getString(R.string.app_name)), params) }
 
     override fun onGetItem(
         session: MediaLibrarySession,
@@ -80,10 +101,10 @@ class LibraryCallback(
         val lib = container.library
         val items: List<MediaItem> = when {
             parentId == ROOT -> listOf(
-                folder(RECENT, "Recently played"),
-                folder(FAVORITES, "Favorites"),
-                folder(PLAYLISTS, "Playlists"),
-                folder(TRENDING, "Trending"),
+                folder(RECENT, container.app.getString(R.string.library_recently_played)),
+                folder(FAVORITES, container.app.getString(R.string.library_favorites)),
+                folder(PLAYLISTS, container.app.getString(R.string.library_playlists)),
+                folder(TRENDING, container.app.getString(R.string.auto_trending)),
             )
             parentId == RECENT -> lib.recentOnce(50).map(MediaItems::of)
             parentId == FAVORITES -> lib.favorites.first().map(MediaItems::of)
@@ -137,12 +158,22 @@ class LibraryCallback(
         )
         .build()
 
-    private companion object {
-        const val ROOT = "root"
-        const val RECENT = "recent"
-        const val FAVORITES = "favorites"
-        const val PLAYLISTS = "playlists"
-        const val TRENDING = "trending"
-        const val PLAYLIST_PREFIX = "playlist:"
+    companion object {
+        /** The saved queue as Media3 resumes it; throws (Media3 then just plays) when there's none. */
+        fun resumptionOf(saved: QueueStore.Saved?): MediaSession.MediaItemsWithStartPosition {
+            if (saved == null || saved.tracks.isEmpty()) throw UnsupportedOperationException("No saved queue")
+            return MediaSession.MediaItemsWithStartPosition(
+                saved.tracks.map { MediaItems.of(it.toTrack()) },
+                saved.index.coerceIn(0, saved.tracks.lastIndex),
+                saved.positionMs,
+            )
+        }
+
+        private const val ROOT = "root"
+        private const val RECENT = "recent"
+        private const val FAVORITES = "favorites"
+        private const val PLAYLISTS = "playlists"
+        private const val TRENDING = "trending"
+        private const val PLAYLIST_PREFIX = "playlist:"
     }
 }

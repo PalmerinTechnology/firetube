@@ -45,9 +45,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.util.UnstableApi
 import com.palmerintech.firetube.AppContainer
+import com.palmerintech.firetube.R
 import com.palmerintech.firetube.extractor.Track
 import kotlinx.coroutines.launch
 
@@ -72,6 +75,7 @@ fun TrackMenuHost(container: AppContainer, controller: TrackMenuController, onSh
     val track = target.track
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val resources = LocalResources.current
     val isFavorite by container.library.isFavorite(track.id).collectAsState(false)
     val downloads by container.downloads.state.collectAsState()
     val download = downloads[track.id]
@@ -86,7 +90,7 @@ fun TrackMenuHost(container: AppContainer, controller: TrackMenuController, onSh
             onDone = { name ->
                 addToPlaylist = false
                 dismiss()
-                if (name != null) onShowMessage("Added to $name")
+                if (name != null) onShowMessage(resources.getString(R.string.menu_added_to_playlist, name))
             },
         )
         return
@@ -103,29 +107,29 @@ fun TrackMenuHost(container: AppContainer, controller: TrackMenuController, onSh
                 }
             }
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
-            MenuItem(Icons.AutoMirrored.Filled.PlaylistPlay, "Play next") {
-                container.player.playNext(track); dismiss(); onShowMessage("Playing next")
+            MenuItem(Icons.AutoMirrored.Filled.PlaylistPlay, stringResource(R.string.menu_play_next)) {
+                container.player.playNext(track); dismiss(); onShowMessage(resources.getString(R.string.menu_playing_next))
             }
-            MenuItem(Icons.AutoMirrored.Filled.QueueMusic, "Add to queue") {
-                container.player.enqueue(listOf(track)); dismiss(); onShowMessage("Added to queue")
+            MenuItem(Icons.AutoMirrored.Filled.QueueMusic, stringResource(R.string.menu_add_to_queue)) {
+                container.player.enqueue(listOf(track)); dismiss(); onShowMessage(resources.getString(R.string.menu_added_to_queue))
             }
-            MenuItem(Icons.Default.Radio, "Start radio") {
+            MenuItem(Icons.Default.Radio, stringResource(R.string.menu_start_radio)) {
                 // A one-song queue; autoplay fills it with related songs.
                 container.player.play(listOf(track)); dismiss()
             }
-            MenuItem(if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder, if (isFavorite) "Remove from favorites" else "Add to favorites") {
+            MenuItem(if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder, stringResource(if (isFavorite) R.string.action_remove_favorite else R.string.action_add_favorite)) {
                 scope.launch { container.library.toggleFavorite(track) }; dismiss()
             }
-            MenuItem(Icons.AutoMirrored.Filled.PlaylistAdd, "Add to playlist") { addToPlaylist = true }
+            MenuItem(Icons.AutoMirrored.Filled.PlaylistAdd, stringResource(R.string.action_add_to_playlist)) { addToPlaylist = true }
             when {
-                download == null || download.failed -> MenuItem(Icons.Default.Download, "Download") {
-                    container.downloads.download(track); dismiss(); onShowMessage("Downloading")
+                download == null || download.failed -> MenuItem(Icons.Default.Download, stringResource(R.string.menu_download)) {
+                    container.downloads.download(track); dismiss(); onShowMessage(resources.getString(R.string.menu_downloading))
                 }
-                else -> MenuItem(Icons.Default.DownloadDone, if (download.completed) "Remove download" else "Cancel download") {
+                else -> MenuItem(Icons.Default.DownloadDone, stringResource(if (download.completed) R.string.menu_remove_download else R.string.menu_cancel_download)) {
                     container.downloads.remove(track.id); dismiss()
                 }
             }
-            MenuItem(Icons.Default.Share, "Share") {
+            MenuItem(Icons.Default.Share, stringResource(R.string.menu_share)) {
                 val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, track.url)
                 context.startActivity(Intent.createChooser(send, null))
                 dismiss()
@@ -161,24 +165,24 @@ fun AddToPlaylistDialog(container: AppContainer, tracks: List<Track>, onDone: (S
     if (creating) {
         AlertDialog(
             onDismissRequest = { onDone(null) },
-            title = { Text("New playlist") },
-            text = { OutlinedTextField(name, { name = it }, singleLine = true, label = { Text("Name") }) },
+            title = { Text(stringResource(R.string.library_new_playlist)) },
+            text = { OutlinedTextField(name, { name = it }, singleLine = true, label = { Text(stringResource(R.string.playlist_name)) }) },
             confirmButton = {
                 TextButton(enabled = name.isNotBlank(), onClick = {
                     scope.launch { container.library.createPlaylist(name, tracks); onDone(name.trim()) }
-                }) { Text("Create") }
+                }) { Text(stringResource(R.string.action_create)) }
             },
-            dismissButton = { TextButton(onClick = { onDone(null) }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { onDone(null) }) { Text(stringResource(R.string.action_cancel)) } },
         )
         return
     }
 
     AlertDialog(
         onDismissRequest = { onDone(null) },
-        title = { Text("Add to playlist") },
+        title = { Text(stringResource(R.string.action_add_to_playlist)) },
         text = {
             LazyColumn {
-                item { MenuItem(Icons.Default.Add, "New playlist") { creating = true } }
+                item { MenuItem(Icons.Default.Add, stringResource(R.string.library_new_playlist)) { creating = true } }
                 items(playlists, key = { it.id }) { p ->
                     MenuItem(Icons.AutoMirrored.Filled.QueueMusic, p.name) {
                         scope.launch { container.library.addToPlaylist(p.id, tracks); onDone(p.name) }
@@ -187,6 +191,6 @@ fun AddToPlaylistDialog(container: AppContainer, tracks: List<Track>, onDone: (S
             }
         },
         confirmButton = {},
-        dismissButton = { TextButton(onClick = { onDone(null) }) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = { onDone(null) }) { Text(stringResource(R.string.action_cancel)) } },
     )
 }

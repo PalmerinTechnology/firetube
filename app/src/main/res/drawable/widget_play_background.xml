@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The flame gradient, like the in-app play button. -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android" android:color="@color/widget_ripple_on_play">
+    <item>
+        <shape android:shape="oval">
+            <gradient
+                android:angle="315"
+                android:centerColor="@color/brand_red"
+                android:endColor="@color/flame_end"
+                android:startColor="@color/flame_start" />
+        </shape>
+    </item>
+</ripple>

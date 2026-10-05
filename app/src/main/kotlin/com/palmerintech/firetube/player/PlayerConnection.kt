@@ -32,6 +32,8 @@ data class PlayerUiState(
     val repeatMode: Int = Player.REPEAT_MODE_OFF,
     val hasNext: Boolean = false,
     val hasPrevious: Boolean = false,
+    /** Playback speed (1 = normal); positions already advance at this rate. */
+    val speed: Float = 1f,
     /** Connected to the playback service; until then [current] is null even if a queue will be restored. */
     val connected: Boolean = false,
 )
@@ -108,12 +110,16 @@ class PlayerConnection(private val context: Context, private val scope: Coroutin
         c.addMediaItems(tracks.map(MediaItems::of))
     }
 
-    fun togglePlay() = withController { c ->
-        if (c.isPlaying) c.pause() else {
-            if (c.playbackState == Player.STATE_IDLE) c.prepare()
-            if (c.playbackState == Player.STATE_ENDED) c.seekToDefaultPosition()
-            c.play()
-        }
+    fun togglePlay() = withController { c -> if (c.isPlaying) c.pause() else c.resume() }
+
+    /** Plays, picking a stopped or finished queue back up. */
+    fun resume() = withController { it.resume() }
+    fun pause() = withController { it.pause() }
+
+    private fun Player.resume() {
+        if (playbackState == Player.STATE_IDLE) prepare()
+        if (playbackState == Player.STATE_ENDED) seekToDefaultPosition()
+        play()
     }
 
     fun next() = withController { it.seekToNextMediaItem() }
@@ -157,18 +163,19 @@ class PlayerConnection(private val context: Context, private val scope: Coroutin
             repeatMode = p.repeatMode,
             hasNext = p.hasNextMediaItem(),
             hasPrevious = p.hasPreviousMediaItem(),
+            speed = p.playbackParameters.speed,
             connected = true,
         )
         if (p.isPlaying) startTicker(p) else ticker?.cancel()
     }
 
-    /** Keeps the progress bar moving while playing. */
+    /** Keeps the progress bar moving while playing (a little faster when the song plays faster). */
     private fun startTicker(p: Player) {
         if (ticker?.isActive == true) return
         ticker = scope.launch {
             while (isActive) {
                 _state.value = _state.value.copy(positionMs = p.currentPosition)
-                delay(500)
+                delay((500 / p.playbackParameters.speed.coerceAtLeast(1f)).toLong())
             }
         }
     }

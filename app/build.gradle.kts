@@ -34,8 +34,8 @@ android {
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
         // 1.x ended at 95. CI may override with VERSION_CODE.
-        versionCode = providers.environmentVariable("VERSION_CODE").orNull?.toInt() ?: 209
-        versionName = "2.0.9"
+        versionCode = providers.environmentVariable("VERSION_CODE").orNull?.toInt() ?: 210
+        versionName = "2.0.10"
         // Tip jar link (Ko-fi / Buy Me a Coffee / PayPal.me). Empty = every support prompt is hidden.
         buildConfigField("String", "DONATE_URL", "\"https://ko-fi.com/stevepalmerin\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -86,7 +86,8 @@ android {
     }
 
     lint {
-        disable += listOf("MissingTranslation")
+        // Every string needs a translation in each values-xx folder (and nothing extra there).
+        error += listOf("MissingTranslation", "ExtraTranslation")
     }
 
     testOptions {

@@ -37,7 +37,12 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.annotation.StringRes
+import com.palmerintech.firetube.R
 import com.palmerintech.firetube.ui.player.rememberPlayerSheetState
 import com.palmerintech.firetube.ui.player.CollapseWhenNoSong
 import com.palmerintech.firetube.ui.player.rememberArtworkColor
@@ -79,6 +84,7 @@ import com.palmerintech.firetube.ui.home.HomeScreen
 import com.palmerintech.firetube.ui.library.LibraryScreen
 import com.palmerintech.firetube.ui.library.PlaylistScreen
 import com.palmerintech.firetube.ui.library.RemotePlaylistScreen
+import com.palmerintech.firetube.ui.library.StatsScreen
 import com.palmerintech.firetube.ui.library.TrackList
 import com.palmerintech.firetube.ui.library.TrackListScreen
 import com.palmerintech.firetube.ui.player.MiniPlayer
@@ -99,13 +105,14 @@ import kotlin.reflect.KClass
 @Serializable data class PlaylistRoute(val id: String)
 @Serializable data class RemotePlaylistRoute(val url: String)
 @Serializable data class TrackListRoute(val list: String)
+@Serializable data object StatsRoute
 
-private data class Tab(val route: Any, val routeClass: KClass<*>, val label: String, val icon: ImageVector, val selectedIcon: ImageVector)
+private data class Tab(val route: Any, val routeClass: KClass<*>, @StringRes val label: Int, val icon: ImageVector, val selectedIcon: ImageVector)
 
 private val tabs = listOf(
-    Tab(HomeRoute, HomeRoute::class, "Home", Icons.Outlined.Home, Icons.Filled.Home),
-    Tab(SearchRoute, SearchRoute::class, "Search", Icons.Filled.Search, Icons.Filled.Search),
-    Tab(LibraryRoute, LibraryRoute::class, "Library", Icons.Outlined.LibraryMusic, Icons.Filled.LibraryMusic),
+    Tab(HomeRoute, HomeRoute::class, R.string.nav_home, Icons.Outlined.Home, Icons.Filled.Home),
+    Tab(SearchRoute, SearchRoute::class, R.string.nav_search, Icons.Filled.Search, Icons.Filled.Search),
+    Tab(LibraryRoute, LibraryRoute::class, R.string.library_title, Icons.Outlined.LibraryMusic, Icons.Filled.LibraryMusic),
 )
 
 @UnstableApi
@@ -122,26 +129,31 @@ fun FireTubeRoot(container: AppContainer, pendingLink: String?, onLinkHandled: (
     LaunchedEffect(sheet.expanded) { playerOpen = sheet.expanded }
     val backStack by nav.currentBackStackEntryAsState()
     val showMessage: (String) -> Unit = { msg -> scope.launch { snackbar.showSnackbar(msg) } }
+    val resources = LocalResources.current
 
     // Links shared to / opened with FireTube.
-    // Links shared to / opened with FireTube, and voice searches. The link is cleared only after
-    // it's handled: clearing it first would change this effect's key and cancel the work.
+    // Links shared to / opened with FireTube, voice searches and the widget. The link is cleared
+    // only after it's handled: clearing it first would change this effect's key and cancel the work.
     LaunchedEffect(pendingLink) {
         val link = pendingLink ?: return@LaunchedEffect
         try {
-            if (link.startsWith(MainActivity.SEARCH_PREFIX)) {
+            if (link == MainActivity.OPEN_PLAYER) {
+                // From the widget. After a cold start the queue takes a moment to come back.
+                val hasSong = withTimeoutOrNull(5_000) { container.player.state.first { it.current != null } }
+                if (hasSong != null) sheet.expand()
+            } else if (link.startsWith(MainActivity.SEARCH_PREFIX)) {
                 val query = link.removePrefix(MainActivity.SEARCH_PREFIX)
                 val top = attempt { container.source.search(query).items }.orEmpty()
                     .filterIsInstance<SearchResult.TrackResult>().firstOrNull()?.track
-                if (top == null) showMessage("Couldn't find “$query”") else container.player.play(listOf(top))
+                if (top == null) showMessage(resources.getString(R.string.link_search_not_found, query)) else container.player.play(listOf(top))
             } else if (link.contains("list=")) {
                 nav.navigate(RemotePlaylistRoute(link))
             } else {
                 val id = NewPipeStreamSource.videoId(link)
                 val track = id?.let { attempt { container.resolver.resolve(it).track } }
                 when {
-                    id == null -> showMessage("That link isn't a YouTube song")
-                    track == null -> showMessage("Couldn't open that video")
+                    id == null -> showMessage(resources.getString(R.string.link_not_youtube))
+                    track == null -> showMessage(resources.getString(R.string.link_open_failed))
                     else -> {
                         container.player.play(listOf(track))
                         // Open once the player has the song, so Now Playing slides up out of the
@@ -198,7 +210,7 @@ fun FireTubeRoot(container: AppContainer, pendingLink: String?, onLinkHandled: (
                             selected = selected,
                             onClick = { select(tab) },
                             icon = { Icon(if (selected) tab.selectedIcon else tab.icon, null) },
-                            label = { Text(tab.label) },
+                            label = { Text(stringResource(tab.label), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                             modifier = Modifier.focusRing(RoundedCornerShape(16.dp)),
                         )
                     }
@@ -234,7 +246,7 @@ fun FireTubeRoot(container: AppContainer, pendingLink: String?, onLinkHandled: (
                                         selected = selected,
                                         onClick = { select(tab) },
                                         icon = { Icon(if (selected) tab.selectedIcon else tab.icon, null) },
-                                        label = { Text(tab.label) },
+                                        label = { Text(stringResource(tab.label), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                     )
                                 }
                             }
@@ -258,6 +270,7 @@ fun FireTubeRoot(container: AppContainer, pendingLink: String?, onLinkHandled: (
                             onOpenPlaylist = { nav.navigate(PlaylistRoute(it)) },
                             onOpenList = { nav.navigate(TrackListRoute(it.name)) },
                             onOpenRemotePlaylist = { nav.navigate(RemotePlaylistRoute(it)) },
+                            onOpenStats = { nav.navigate(StatsRoute) },
                             content,
                         )
                     }
@@ -270,7 +283,7 @@ fun FireTubeRoot(container: AppContainer, pendingLink: String?, onLinkHandled: (
                             container, entry.toRoute<RemotePlaylistRoute>().url,
                             onBack = { nav.popBackStack() },
                             onSaved = { id ->
-                                showMessage("Saved to your library")
+                                showMessage(resources.getString(R.string.remote_playlist_saved))
                                 nav.navigate(PlaylistRoute(id)) { popUpTo<RemotePlaylistRoute> { inclusive = true } }
                             },
                             content,
@@ -279,6 +292,7 @@ fun FireTubeRoot(container: AppContainer, pendingLink: String?, onLinkHandled: (
                     composable<TrackListRoute> { entry ->
                         TrackListScreen(container, TrackList.valueOf(entry.toRoute<TrackListRoute>().list), onBack = { nav.popBackStack() }, content)
                     }
+                    composable<StatsRoute> { StatsScreen(container, onBack = { nav.popBackStack() }, content) }
                 }
             }
 

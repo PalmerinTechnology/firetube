@@ -75,6 +75,9 @@ class NewPipeStreamSource(
             expiresAtMillis = expiryOf(audio.content),
             related = related,
             track = track,
+            // Same request: YouTube's chapters, or a track list in the description when it has none.
+            chapters = Chapters.fromSegments(info.streamSegments.orEmpty(), info.duration)
+                .ifEmpty { Chapters.fromDescription(Chapters.plainText(info.description), info.duration) },
         )
     }
 

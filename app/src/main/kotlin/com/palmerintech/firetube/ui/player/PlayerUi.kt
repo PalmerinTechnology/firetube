@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.focus.FocusRequester
@@ -27,6 +28,7 @@ import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import kotlin.math.abs
@@ -49,15 +51,18 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.BedtimeOff
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Lyrics
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -69,6 +74,8 @@ import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -76,6 +83,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -102,6 +110,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -109,6 +118,10 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import coil3.compose.AsyncImage
 import com.palmerintech.firetube.AppContainer
+import com.palmerintech.firetube.R
+import com.palmerintech.firetube.extractor.Chapter
+import com.palmerintech.firetube.extractor.Chapters
+import com.palmerintech.firetube.player.PlaybackSpeed
 import com.palmerintech.firetube.player.PlayerUiState
 import com.palmerintech.firetube.player.SleepTimer
 import com.palmerintech.firetube.ui.components.AddToPlaylistDialog
@@ -119,6 +132,7 @@ import com.palmerintech.firetube.ui.components.CastButton
 import com.palmerintech.firetube.ui.components.LocalTrackMenu
 import com.palmerintech.firetube.ui.components.TrackRow
 import com.palmerintech.firetube.ui.components.formatDuration
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
@@ -155,6 +169,8 @@ fun MiniPlayer(
     val drag by rememberUpdatedState(onDrag)
     val dragEnd by rememberUpdatedState(onDragEnd)
 
+    val previousTrackLabel = stringResource(R.string.player_previous_track)
+    val nextTrackLabel = stringResource(R.string.player_next_track)
     val swipe = Modifier.pointerInput(Unit) {
         val tracker = VelocityTracker()
         var totalX = 0f
@@ -212,8 +228,8 @@ fun MiniPlayer(
             .clip(RoundedCornerShape(14.dp))
             .semantics {
                 customActions = buildList {
-                    if (state.hasPrevious) add(CustomAccessibilityAction("Previous track") { onPrevious(); true })
-                    if (state.hasNext) add(CustomAccessibilityAction("Next track") { onNext(); true })
+                    if (state.hasPrevious) add(CustomAccessibilityAction(previousTrackLabel) { onPrevious(); true })
+                    if (state.hasNext) add(CustomAccessibilityAction(nextTrackLabel) { onNext(); true })
                 }
             }
             .clickable(onClick = onOpen),
@@ -249,7 +265,7 @@ private fun MiniPlayerCard(
                     Text(track.artist, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 PlayPauseButton(state, onTogglePlay, small = true)
-                IconButton(onClick = onNext) { Icon(Icons.Default.SkipNext, "Next") }
+                IconButton(onClick = onNext) { Icon(Icons.Default.SkipNext, stringResource(R.string.player_next)) }
             }
             val progress = if (state.durationMs > 0) (state.positionMs.toFloat() / state.durationMs).coerceIn(0f, 1f) else 0f
             LinearProgressIndicator(
@@ -269,8 +285,8 @@ private fun PlayPauseButton(state: PlayerUiState, onClick: () -> Unit, small: Bo
         IconButton(onClick = onClick) {
             when {
                 state.isBuffering && !state.isPlaying -> CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
-                state.isPlaying -> Icon(Icons.Default.Pause, "Pause")
-                else -> Icon(Icons.Default.PlayArrow, "Play")
+                state.isPlaying -> Icon(Icons.Default.Pause, stringResource(R.string.player_pause))
+                else -> Icon(Icons.Default.PlayArrow, stringResource(R.string.player_play))
             }
         }
     } else {
@@ -281,8 +297,8 @@ private fun PlayPauseButton(state: PlayerUiState, onClick: () -> Unit, small: Bo
         ) {
             when {
                 state.isBuffering && !state.isPlaying -> CircularProgressIndicator(Modifier.size(32.dp), strokeWidth = 3.dp, color = Color.White)
-                state.isPlaying -> Icon(Icons.Default.Pause, "Pause", Modifier.size(40.dp), tint = Color.White)
-                else -> Icon(Icons.Default.PlayArrow, "Play", Modifier.size(40.dp), tint = Color.White)
+                state.isPlaying -> Icon(Icons.Default.Pause, stringResource(R.string.player_pause), Modifier.size(40.dp), tint = Color.White)
+                else -> Icon(Icons.Default.PlayArrow, stringResource(R.string.player_play), Modifier.size(40.dp), tint = Color.White)
             }
         }
     }
@@ -308,12 +324,25 @@ fun NowPlayingScreen(
     val player = container.player
     val isFavorite by container.library.isFavorite(track.id).collectAsState(false)
     val sleep by container.sleepTimer.state.collectAsState()
+    // The saved speed, not every value the player passes through on its way there (or while a
+    // Chromecast refuses it); once it has refused, what it actually plays at.
+    val savedSpeed by remember { container.settings.settings.map { it.playbackSpeed } }.collectAsState(null)
+    val speedUnsupported by container.speedGuard.unsupported.collectAsState()
+    val speed = if (speedUnsupported) state.speed else savedSpeed ?: state.speed
     val scope = rememberCoroutineScope()
     val menu = LocalTrackMenu.current
     var showQueue by remember { mutableStateOf(false) }
     var showSleep by remember { mutableStateOf(false) }
+    var showLyrics by remember { mutableStateOf(false) }
+    var showSpeed by remember { mutableStateOf(false) }
     var addToPlaylist by remember { mutableStateOf(false) }
+    var showChapters by remember { mutableStateOf(false) }
     var scrubbing by remember { mutableStateOf<Float?>(null) }
+    // Long videos (mixes, full albums): known once the track has been resolved for playback.
+    // null until the new track's chapters are known, so an open sheet doesn't flicker shut on a track change.
+    val loadedChapters by remember(track.id) { container.resolver.chapters(track.id) }.collectAsState(null)
+    val chapters = loadedChapters.orEmpty()
+    LaunchedEffect(loadedChapters) { if (loadedChapters?.isEmpty() == true) showChapters = false }
 
     BackHandler(enabled = sheet.expanded, onBack = onClose)
 
@@ -370,10 +399,21 @@ fun NowPlayingScreen(
                     .graphicsLayer { alpha = ((sheet.progress - CONTROLS_FROM) / 0.3f).coerceIn(0f, 1f) },
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onClose) { Icon(Icons.Default.KeyboardArrowDown, "Close player") }
-                    Text("Now playing", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    IconButton(onClick = onClose) { Icon(Icons.Default.KeyboardArrowDown, stringResource(R.string.player_close)) }
+                    // One line, ellipsized: the speed, cast and menu buttons beside it keep their size.
+                    Text(stringResource(R.string.player_now_playing), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    val speedDescription = stringResource(R.string.player_speed_description, PlaybackSpeed.label(speed))
+                    TextButton(onClick = { showSpeed = true }, modifier = Modifier.semantics { contentDescription = speedDescription }) {
+                        // Plain at 1x; highlighted only when the speed is changed.
+                        val normal = PlaybackSpeed.same(speed, 1f)
+                        Text(
+                            PlaybackSpeed.label(speed),
+                            color = if (normal) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary,
+                            fontWeight = if (normal) FontWeight.Normal else FontWeight.Bold,
+                        )
+                    }
                     CastButton(container.castAvailable)
-                    IconButton(onClick = { menu.open(track) }) { Icon(Icons.Default.MoreVert, "More") }
+                    IconButton(onClick = { menu.open(track) }) { Icon(Icons.Default.MoreVert, stringResource(R.string.action_more)) }
                 }
                 // Landscape (tablets, TV): artwork beside the controls instead of above them.
                 val landscape = LocalConfiguration.current.let { it.screenWidthDp > it.screenHeightDp }
@@ -383,28 +423,41 @@ fun NowPlayingScreen(
                     }
                 }
                 val controls = @Composable {
+                    val duration = state.durationMs.coerceAtLeast(1)
+                    val shown = scrubbing?.let { (it * duration).toLong() } ?: state.positionMs
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text(track.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.basicMarquee())
                             Text(track.artist, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                            if (chapters.isNotEmpty()) CurrentChapter(chapters, shown, player::seekTo) { showChapters = true }
                         }
                         IconButton(onClick = { scope.launch { container.library.toggleFavorite(track) } }) {
                             Icon(
                                 if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                                if (isFavorite) "Remove from favorites" else "Add to favorites",
+                                stringResource(if (isFavorite) R.string.action_remove_favorite else R.string.action_add_favorite),
                                 tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                             )
                         }
                     }
                     Spacer(Modifier.height(12.dp))
-                    val duration = state.durationMs.coerceAtLeast(1)
+                    val sliderColors = SliderDefaults.colors()
                     Slider(
                         value = scrubbing ?: (state.positionMs.toFloat() / duration).coerceIn(0f, 1f),
                         onValueChange = { scrubbing = it },
                         onValueChangeFinished = { scrubbing?.let { player.seekTo((it * duration).toLong()) }; scrubbing = null },
+                        colors = sliderColors,
+                        track = { sliderState ->
+                            SliderDefaults.Track(
+                                sliderState,
+                                colors = sliderColors,
+                                modifier = Modifier.chapterTicks(
+                                    chapters, state.durationMs, { sliderState.value },
+                                    sliderColors.activeTickColor, sliderColors.inactiveTickColor,
+                                ),
+                            )
+                        },
                     )
                     Row {
-                        val shown = scrubbing?.let { (it * duration).toLong() } ?: state.positionMs
                         Text(formatDuration(shown / 1000).ifEmpty { "0:00" }, style = MaterialTheme.typography.labelMedium)
                         Spacer(Modifier.weight(1f))
                         Text(formatDuration(state.durationMs / 1000), style = MaterialTheme.typography.labelMedium)
@@ -412,15 +465,15 @@ fun NowPlayingScreen(
                     Spacer(Modifier.height(12.dp))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = player::toggleShuffle) {
-                            Icon(Icons.Default.Shuffle, "Shuffle", tint = if (state.shuffle) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                            Icon(Icons.Default.Shuffle, stringResource(R.string.player_shuffle), tint = if (state.shuffle) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        IconButton(onClick = player::previous, modifier = Modifier.size(56.dp)) { Icon(Icons.Default.SkipPrevious, "Previous", Modifier.size(36.dp)) }
+                        IconButton(onClick = player::previous, modifier = Modifier.size(56.dp)) { Icon(Icons.Default.SkipPrevious, stringResource(R.string.player_previous), Modifier.size(36.dp)) }
                         PlayPauseButton(state, player::togglePlay, small = false, modifier = Modifier.focusRequester(playFocus))
-                        IconButton(onClick = player::next, modifier = Modifier.size(56.dp)) { Icon(Icons.Default.SkipNext, "Next", Modifier.size(36.dp)) }
+                        IconButton(onClick = player::next, modifier = Modifier.size(56.dp)) { Icon(Icons.Default.SkipNext, stringResource(R.string.player_next), Modifier.size(36.dp)) }
                         IconButton(onClick = player::cycleRepeat) {
                             Icon(
                                 if (state.repeatMode == Player.REPEAT_MODE_ONE) Icons.Default.RepeatOne else Icons.Default.Repeat,
-                                "Repeat",
+                                stringResource(R.string.player_repeat),
                                 tint = if (state.repeatMode != Player.REPEAT_MODE_OFF) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
@@ -428,11 +481,12 @@ fun NowPlayingScreen(
                     Spacer(Modifier.height(16.dp))
                     Row(Modifier.fillMaxWidth().padding(bottom = 16.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
                         IconButton(onClick = { showSleep = true }) {
-                            Icon(if (sleep == SleepTimer.State.Off) Icons.Default.BedtimeOff else Icons.Default.Bedtime, "Sleep timer",
+                            Icon(if (sleep == SleepTimer.State.Off) Icons.Default.BedtimeOff else Icons.Default.Bedtime, stringResource(R.string.sleep_timer),
                                 tint = if (sleep == SleepTimer.State.Off) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary)
                         }
-                        IconButton(onClick = { addToPlaylist = true }) { Icon(Icons.AutoMirrored.Filled.PlaylistAdd, "Add to playlist") }
-                        IconButton(onClick = { showQueue = true }) { Icon(Icons.AutoMirrored.Filled.QueueMusic, "Queue") }
+                        IconButton(onClick = { addToPlaylist = true }) { Icon(Icons.AutoMirrored.Filled.PlaylistAdd, stringResource(R.string.action_add_to_playlist)) }
+                        IconButton(onClick = { showLyrics = true }) { Icon(Icons.Default.Lyrics, stringResource(R.string.lyrics_title)) }
+                        IconButton(onClick = { showQueue = true }) { Icon(Icons.AutoMirrored.Filled.QueueMusic, stringResource(R.string.player_queue)) }
                     }
                 }
                 if (landscape) {
@@ -477,11 +531,48 @@ fun NowPlayingScreen(
 
     if (showQueue) QueueSheet(container, state) { showQueue = false }
     if (showSleep) SleepSheet(container.sleepTimer, sleep) { showSleep = false }
+    if (showLyrics) LyricsSheet(container, state) { showLyrics = false }
+    if (showSpeed) {
+        SpeedSheet(savedSpeed ?: state.speed, speedUnsupported, { scope.launch { container.settings.setPlaybackSpeed(it) } }) { showSpeed = false }
+    }
     if (addToPlaylist) AddToPlaylistDialog(container, listOf(track)) { addToPlaylist = false }
+    if (showChapters) ChaptersSheet(track.title, chapters, state.positionMs, player::seekTo) { showChapters = false }
 }
 
 /** Sheet progress at which Now Playing's controls replace the mini player shown at its top. */
 private const val CONTROLS_FROM = 0.25f
+
+/**
+ * The chapter playing at [positionMs] (or being scrubbed to), under the artist; tap it for the
+ * list. Screen readers also get previous/next chapter actions; the skip buttons stay per track.
+ */
+@Composable
+private fun CurrentChapter(chapters: List<Chapter>, positionMs: Long, onSeek: (Long) -> Unit, onOpen: () -> Unit) {
+    val index = Chapters.indexAt(chapters, positionMs)
+    val chaptersLabel = stringResource(R.string.chapters_title)
+    val title = chapters.getOrNull(index)?.title ?: chaptersLabel
+    val description = if (index >= 0) stringResource(R.string.chapter_position_description, index + 1, chapters.size, title) else chaptersLabel
+    val previousLabel = stringResource(R.string.chapter_previous)
+    val nextLabel = stringResource(R.string.chapter_next)
+    val shape = RoundedCornerShape(8.dp)
+    Row(
+        Modifier.padding(top = 4.dp).focusRing(shape).clip(shape)
+            .clickable(onClickLabel = stringResource(R.string.chapters_show), onClick = onOpen)
+            .semantics {
+                contentDescription = description
+                customActions = buildList {
+                    chapters.getOrNull(index - 1)?.let { add(CustomAccessibilityAction(previousLabel) { onSeek(it.startMs); true }) }
+                    chapters.getOrNull(index + 1)?.let { add(CustomAccessibilityAction(nextLabel) { onSeek(it.startMs); true }) }
+                }
+            }
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.AutoMirrored.Filled.List, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+        Spacer(Modifier.width(6.dp))
+        Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
 
 @UnstableApi
 @OptIn(ExperimentalMaterial3Api::class)
@@ -496,7 +587,7 @@ private fun QueueSheet(container: AppContainer, state: PlayerUiState, onDismiss:
     }
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        Text("Up next", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+        Text(stringResource(R.string.queue_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
         LazyColumn(state = listState, modifier = Modifier.navigationBarsPadding()) {
             itemsIndexed(items, key = { _, it -> it.first }) { index, (key, track) ->
                 ReorderableItem(reorder, key = key) {
@@ -507,7 +598,7 @@ private fun QueueSheet(container: AppContainer, state: PlayerUiState, onDismiss:
                         isCurrent = index == state.currentIndex,
                         trailing = {
                             if (index != state.currentIndex) {
-                                IconButton(onClick = { player.removeQueueItem(index) }) { Icon(Icons.Default.Close, "Remove from queue") }
+                                IconButton(onClick = { player.removeQueueItem(index) }) { Icon(Icons.Default.Close, stringResource(R.string.queue_remove)) }
                             }
                             IconButton(
                                 modifier = Modifier.draggableHandle(
@@ -519,7 +610,7 @@ private fun QueueSheet(container: AppContainer, state: PlayerUiState, onDismiss:
                                     },
                                 ),
                                 onClick = {},
-                            ) { Icon(Icons.Default.DragHandle, "Reorder") }
+                            ) { Icon(Icons.Default.DragHandle, stringResource(R.string.action_reorder)) }
                         },
                     )
                 }
@@ -534,23 +625,66 @@ private fun SleepSheet(timer: SleepTimer, state: SleepTimer.State, onDismiss: ()
     var custom by remember { mutableFloatStateOf(30f) }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp)) {
-            Text("Sleep timer", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.sleep_timer), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             when (state) {
-                is SleepTimer.State.At -> Text("Stops at ${java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(state.epochMillis))}")
-                SleepTimer.State.EndOfTrack -> Text("Stops when this song ends")
+                is SleepTimer.State.At -> Text(stringResource(R.string.sleep_stops_at, java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(state.epochMillis))))
+                SleepTimer.State.EndOfTrack -> Text(stringResource(R.string.sleep_stops_end_of_song))
                 SleepTimer.State.Off -> {}
             }
-            Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(15, 30, 60).forEach { m -> TextButton(onClick = { timer.start(m); onDismiss() }) { Text("$m min") } }
-                TextButton(onClick = { timer.endOfTrack(); onDismiss() }) { Text("End of song") }
+            // Wraps onto a second line when the labels are long (translations, large text).
+            FlowRow(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(15, 30, 60).forEach { m -> TextButton(onClick = { timer.start(m); onDismiss() }) { Text(stringResource(R.string.sleep_minutes, m)) } }
+                TextButton(onClick = { timer.endOfTrack(); onDismiss() }) { Text(stringResource(R.string.sleep_end_of_song)) }
             }
-            Text("Custom: ${custom.toInt()} min")
+            Text(stringResource(R.string.sleep_custom, custom.toInt()))
             Slider(custom, { custom = it }, valueRange = 5f..180f, steps = 34)
             Row {
-                TextButton(onClick = { timer.start(custom.toInt()); onDismiss() }) { Text("Start") }
+                TextButton(onClick = { timer.start(custom.toInt()); onDismiss() }) { Text(stringResource(R.string.sleep_start)) }
                 Spacer(Modifier.weight(1f))
-                if (state != SleepTimer.State.Off) TextButton(onClick = { timer.cancel(); onDismiss() }) { Text("Turn off") }
+                if (state != SleepTimer.State.Off) TextButton(onClick = { timer.cancel(); onDismiss() }) { Text(stringResource(R.string.sleep_turn_off)) }
             }
+        }
+    }
+}
+
+/** Playback speed; saved in settings, which the playback service applies (pitch is kept). */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SpeedSheet(speed: Float, unsupported: Boolean, onSpeed: (Float) -> Unit, onDismiss: () -> Unit) {
+    var custom by remember { mutableFloatStateOf(speed) }
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp)) {
+            Text(stringResource(R.string.speed_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            if (unsupported) {
+                Text(
+                    stringResource(R.string.speed_unsupported),
+                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            // Wraps onto a second line on narrow screens, so every choice stays visible.
+            FlowRow(
+                Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                PlaybackSpeed.choices.forEach { v ->
+                    val selected = PlaybackSpeed.same(v, speed)
+                    FilterChip(
+                        selected = selected,
+                        onClick = { onSpeed(v); onDismiss() },
+                        label = { Text(PlaybackSpeed.label(v)) },
+                        leadingIcon = if (selected) {
+                            { Icon(Icons.Default.Check, null, Modifier.size(FilterChipDefaults.IconSize)) }
+                        } else null,
+                    )
+                }
+            }
+            Text(stringResource(R.string.speed_custom, PlaybackSpeed.label(custom)))
+            Slider(
+                custom, { custom = PlaybackSpeed.clamp(it) },
+                valueRange = PlaybackSpeed.MIN..PlaybackSpeed.MAX,
+                steps = ((PlaybackSpeed.MAX - PlaybackSpeed.MIN) / 0.05f).roundToInt() - 1,
+                onValueChangeFinished = { onSpeed(custom) },
+            )
         }
     }
 }
