@@ -28,6 +28,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import com.palmerintech.firetube.R
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -103,7 +105,7 @@ fun TrackRow(
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (downloaded) {
-                    Icon(Icons.Default.DownloadDone, "Downloaded", Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                    Icon(Icons.Default.DownloadDone, stringResource(R.string.track_downloaded), Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.width(4.dp))
                 }
                 Text(
@@ -117,7 +119,7 @@ fun TrackRow(
         }
         trailing?.invoke()
         if (onMore != null) {
-            IconButton(onClick = onMore, modifier = Modifier.focusRing(CircleShape)) { Icon(Icons.Default.MoreVert, "More options") }
+            IconButton(onClick = onMore, modifier = Modifier.focusRing(CircleShape)) { Icon(Icons.Default.MoreVert, stringResource(R.string.track_more_options)) }
         }
     }
 }

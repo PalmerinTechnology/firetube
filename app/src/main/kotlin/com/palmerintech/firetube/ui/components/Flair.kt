@@ -36,12 +36,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.palmerintech.firetube.R
@@ -119,23 +121,24 @@ fun SupportCard(onSupport: () -> Unit, onDismiss: () -> Unit, modifier: Modifier
         FlameIcon(size = 36.dp, tint = Color.White)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text("Enjoying FireTube?", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White)
+            Text(stringResource(R.string.support_card_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White)
             Text(
-                "It's free and has no ads. If it's become part of your day, you can help keep it going.",
+                stringResource(R.string.support_card_body),
                 style = MaterialTheme.typography.bodyMedium,
                 color = Color.White.copy(alpha = 0.92f),
             )
-            Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // Wraps if the labels don't fit side by side.
+            FlowRow(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
                     onClick = onSupport,
                     colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = MaterialTheme.colorScheme.primary),
                     modifier = Modifier.focusRing(RoundedCornerShape(50)),
-                ) { Text("Support", fontWeight = FontWeight.SemiBold) }
+                ) { Text(stringResource(R.string.support_card_support), fontWeight = FontWeight.SemiBold) }
                 TextButton(
                     onClick = onDismiss,
                     colors = ButtonDefaults.textButtonColors(contentColor = Color.White),
                     modifier = Modifier.focusRing(RoundedCornerShape(50)),
-                ) { Text("Not now") }
+                ) { Text(stringResource(R.string.support_card_not_now)) }
             }
         }
     }

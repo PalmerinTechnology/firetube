@@ -16,6 +16,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.palmerintech.firetube.R
 import com.palmerintech.firetube.lyrics.LrcLine
 import com.palmerintech.firetube.lyrics.LyricsResult
 import com.palmerintech.firetube.ui.Load
@@ -103,7 +104,7 @@ class LyricsBodyTest {
         load = Load.Ready(LyricsResult.NotFound)
         compose.onNodeWithText("No lyrics found for this song.").assertIsDisplayed()
 
-        load = Load.Failed("You're offline.")
+        load = Load.Failed(R.string.error_offline)
         compose.onNodeWithText("You're offline.").assertIsDisplayed()
         compose.onNodeWithText("Try again").performClick()
         assertEquals(1, retries)

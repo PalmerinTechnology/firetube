@@ -37,18 +37,23 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.media3.common.util.UnstableApi
 import com.palmerintech.firetube.AppContainer
 import com.palmerintech.firetube.BuildConfig
+import com.palmerintech.firetube.R
 import com.palmerintech.firetube.Support
 import com.palmerintech.firetube.ui.components.openUrl
 import com.palmerintech.firetube.data.AudioQuality
 import com.palmerintech.firetube.data.EqualizerPreset
 import com.palmerintech.firetube.data.ThemeMode
 import com.palmerintech.firetube.data.UserSettings
+import com.palmerintech.firetube.data.sync.Backup
 import com.palmerintech.firetube.data.sync.CloudSync
 import com.palmerintech.firetube.player.AudioEffects
 import com.palmerintech.firetube.player.Crossfade
@@ -69,6 +74,7 @@ fun SettingsScreen(container: AppContainer, onBack: () -> Unit, onShowMessage: (
     val syncStatus by container.sync.status.collectAsState()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val resources = LocalResources.current
     val s = container.settings
 
     var cacheDialog by remember { mutableStateOf(false) }
@@ -83,153 +89,158 @@ fun SettingsScreen(container: AppContainer, onBack: () -> Unit, onShowMessage: (
         uri ?: return@rememberLauncherForActivityResult
         scope.launch {
             runCatching { context.contentResolver.openOutputStream(uri)!!.let { container.backup.export(it) } }
-                .fold({ onShowMessage("Library exported") }, { onShowMessage("Export failed: ${it.message}") })
+                .fold({ onShowMessage(resources.getString(R.string.settings_library_exported)) }, { onShowMessage(resources.getString(R.string.settings_export_failed, it.message)) })
         }
     }
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri ?: return@rememberLauncherForActivityResult
         scope.launch {
             runCatching { container.backup.import(context.contentResolver.openInputStream(uri)!!) }
-                .fold({ onShowMessage("Imported $it playlists"); container.sync.syncNow() }, { onShowMessage("Import failed: ${it.message}") })
+                .fold({ onShowMessage(resources.getQuantityString(R.plurals.settings_imported_playlists, it, it)); container.sync.syncNow() }, {
+                    onShowMessage(
+                        if (it is Backup.NotABackupException) resources.getString(R.string.settings_import_not_backup)
+                        else resources.getString(R.string.settings_import_failed, it.message),
+                    )
+                })
         }
     }
 
     fun open(url: String) {
-        if (!context.openUrl(url)) onShowMessage("No browser on this device \u2014 visit $url")
+        if (!context.openUrl(url)) onShowMessage(resources.getString(R.string.no_browser, url))
     }
 
     Column {
         TopAppBar(
-            title = { Text("Settings") },
-            navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
+            title = { Text(stringResource(R.string.settings_title)) },
+            navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back)) } },
         )
         LazyColumn(contentPadding = contentPadding) {
-            item { Group("Playback") }
+            item { Group(stringResource(R.string.settings_group_playback)) }
             item {
-                SwitchRow("Autoplay", "Keep playing similar songs when the queue ends", settings.autoplay) {
+                SwitchRow(stringResource(R.string.settings_autoplay), stringResource(R.string.settings_autoplay_summary), settings.autoplay) {
                     scope.launch { s.setAutoplay(it) }
                 }
             }
             item {
-                SwitchRow("Skip non-music sections", "Skips intros, talking and sponsor reads (SponsorBlock)", settings.sponsorBlock) {
+                SwitchRow(stringResource(R.string.settings_sponsorblock), stringResource(R.string.settings_sponsorblock_summary), settings.sponsorBlock) {
                     scope.launch { s.setSponsorBlock(it) }
                 }
             }
             item {
-                SwitchRow("Even out volume", "Keeps loud and quiet songs at a similar level", settings.volumeLeveling) {
+                SwitchRow(stringResource(R.string.settings_volume_leveling), stringResource(R.string.settings_volume_leveling_summary), settings.volumeLeveling) {
                     scope.launch { s.setVolumeLeveling(it) }
                 }
             }
             item {
-                SwitchRow("Data saver", "Stream lower-bitrate audio", settings.audioQuality == AudioQuality.DATA_SAVER) {
+                SwitchRow(stringResource(R.string.settings_data_saver), stringResource(R.string.settings_data_saver_summary), settings.audioQuality == AudioQuality.DATA_SAVER) {
                     scope.launch { container.setAudioQuality(if (it) AudioQuality.DATA_SAVER else AudioQuality.HIGH) }
                 }
             }
 
-            item { Group("Audio") }
+            item { Group(stringResource(R.string.settings_group_audio)) }
             // Hidden on devices without the effect.
             if (AudioEffects.equalizerSupported) {
-                item { ClickRow("Equalizer", settings.equalizerPreset.label()) { equalizerDialog = true } }
+                item { ClickRow(stringResource(R.string.settings_equalizer), settings.equalizerPreset.label()) { equalizerDialog = true } }
             }
             if (AudioEffects.bassBoostSupported) {
                 item {
-                    SliderRow("Bass boost", { if (it == 0) "Off" else "$it%" }, settings.bassBoost, 0..100, step = 10) {
+                    SliderRow(stringResource(R.string.settings_bass_boost), { if (it == 0) stringResource(R.string.settings_off) else stringResource(R.string.settings_percent, it) }, settings.bassBoost, 0..100, step = 10) {
                         scope.launch { s.setBassBoost(it) }
                     }
                 }
             }
             item {
-                ClickRow("Crossfade", settings.crossfadeSeconds.let { if (it == 0) "Off — songs play back to back" else "Fades between songs over $it s" }) {
+                ClickRow(stringResource(R.string.settings_crossfade), settings.crossfadeSeconds.let { if (it == 0) stringResource(R.string.settings_crossfade_off_summary) else stringResource(R.string.settings_crossfade_summary, it) }) {
                     crossfadeDialog = true
                 }
             }
 
-            item { Group("Appearance") }
-            item { ClickRow("Theme", settings.themeMode.label()) { themeDialog = true } }
+            item { Group(stringResource(R.string.settings_group_appearance)) }
+            item { ClickRow(stringResource(R.string.settings_theme), settings.themeMode.label()) { themeDialog = true } }
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
                 item {
-                    SwitchRow("Wallpaper colors", "Match FireTube's colors to your wallpaper", settings.dynamicColor) {
+                    SwitchRow(stringResource(R.string.settings_dynamic_color), stringResource(R.string.settings_dynamic_color_summary), settings.dynamicColor) {
                         scope.launch { s.setDynamicColor(it) }
                     }
                 }
             }
 
-            item { Group("Storage") }
-            item { ClickRow("Song cache", "${settings.cacheSizeMb} MB · recently played songs replay without data") { cacheDialog = true } }
+            item { Group(stringResource(R.string.settings_group_storage)) }
+            item { ClickRow(stringResource(R.string.settings_song_cache), stringResource(R.string.settings_song_cache_summary, settings.cacheSizeMb)) { cacheDialog = true } }
             item {
-                ClickRow("Clear cache", "Downloads are kept") {
+                ClickRow(stringResource(R.string.settings_clear_cache), stringResource(R.string.settings_clear_cache_summary)) {
                     scope.launch {
                         withContext(Dispatchers.IO) {
                             val cache = container.mediaStack.streamCache
                             cache.keys.toList().forEach(cache::removeResource)
                         }
-                        onShowMessage("Cache cleared")
+                        onShowMessage(resources.getString(R.string.settings_cache_cleared))
                     }
                 }
             }
 
             if (container.auth.available) {
-                item { Group("Account") }
+                item { Group(stringResource(R.string.settings_group_account)) }
                 val u = user
                 if (u == null) {
                     item {
-                        ClickRow("Sign in with Google", "Sync playlists and favorites across your devices") {
+                        ClickRow(stringResource(R.string.settings_sign_in), stringResource(R.string.settings_sign_in_summary)) {
                             scope.launch {
-                                runCatching { container.auth.signIn(context) }.onFailure { onShowMessage("Sign-in failed: ${it.message}") }
+                                runCatching { container.auth.signIn(context) }.onFailure { onShowMessage(resources.getString(R.string.settings_sign_in_failed, it.message)) }
                             }
                         }
                     }
                 } else {
                     item {
-                        ClickRow("Sync now", "${u.email ?: u.displayName} · ${syncStatus.label()}") { scope.launch { container.sync.syncNow() } }
+                        ClickRow(stringResource(R.string.settings_sync_now), "${u.email ?: u.displayName} · ${syncStatus.label()}") { scope.launch { container.sync.syncNow() } }
                     }
-                    item { ClickRow("Sign out", "Your library stays on this device") { scope.launch { container.auth.signOut(context) } } }
+                    item { ClickRow(stringResource(R.string.settings_sign_out), stringResource(R.string.settings_sign_out_summary)) { scope.launch { container.auth.signOut(context) } } }
                 }
             }
 
             if (container.firebaseConfigured) {
-                item { Group("Privacy") }
+                item { Group(stringResource(R.string.settings_group_privacy)) }
                 item {
-                    SwitchRow("Send crash reports", "Crash details (no personal data) help fix bugs — Firebase Crashlytics", settings.crashReports) {
+                    SwitchRow(stringResource(R.string.settings_crash_reports), stringResource(R.string.settings_crash_reports_summary), settings.crashReports) {
                         scope.launch { s.setCrashReports(it) }
                     }
                 }
             }
 
-            item { Group("Backup") }
-            item { ClickRow("Export library", "Save playlists and favorites to a file") { exportLauncher.launch("firetube-backup.json") } }
-            item { ClickRow("Import library", "Restore from a FireTube backup file") { importLauncher.launch(arrayOf("application/json", "*/*")) } }
+            item { Group(stringResource(R.string.settings_group_backup)) }
+            item { ClickRow(stringResource(R.string.settings_export), stringResource(R.string.settings_export_summary)) { exportLauncher.launch("firetube-backup.json") } }
+            item { ClickRow(stringResource(R.string.settings_import), stringResource(R.string.settings_import_summary)) { importLauncher.launch(arrayOf("application/json", "*/*")) } }
 
             if (container.updater.supported) {
-                item { Group("Updates") }
+                item { Group(stringResource(R.string.settings_group_updates)) }
                 item {
-                    ClickRow("Check for updates", if (checking) "Checking…" else "Version ${BuildConfig.VERSION_NAME}") {
+                    ClickRow(stringResource(R.string.settings_check_updates), if (checking) stringResource(R.string.settings_checking) else stringResource(R.string.settings_version, BuildConfig.VERSION_NAME)) {
                         checking = true
                         scope.launch {
                             val u = container.updater.check()
                             checking = false
-                            if (u == null) onShowMessage("You're up to date") else update = u
+                            if (u == null) onShowMessage(resources.getString(R.string.settings_up_to_date)) else update = u
                         }
                     }
                 }
                 installProgress?.let { p -> item { LinearProgressIndicator(progress = { p }, modifier = Modifier.fillMaxWidth().padding(16.dp)) } }
             }
 
-            item { Group("About") }
+            item { Group(stringResource(R.string.settings_group_about)) }
             item {
                 ClickRow(
                     "FireTube ${BuildConfig.VERSION_NAME}",
-                    "Free and ad-free",
+                    stringResource(R.string.settings_about_summary),
                 ) {}
             }
             Support.donateUrl?.let { url ->
-                item { Group("Support FireTube") }
-                item { ClickRow("Leave a tip", "FireTube is free and ad-free \u2014 tips keep it going") { open(url) } }
+                item { Group(stringResource(R.string.settings_group_support)) }
+                item { ClickRow(stringResource(R.string.settings_tip), stringResource(R.string.settings_tip_summary)) { open(url) } }
             }
-            item { ClickRow("Source code", "FireTube is open source (GPLv3)") { open(SOURCE_URL) } }
+            item { ClickRow(stringResource(R.string.settings_source_code), stringResource(R.string.settings_source_code_summary)) { open(SOURCE_URL) } }
             item {
                 Text(
-                    "FireTube isn't affiliated with YouTube or Google. Uses NewPipeExtractor (GPLv3), Media3 and SponsorBlock.",
+                    stringResource(R.string.settings_disclaimer),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(16.dp),
@@ -239,49 +250,49 @@ fun SettingsScreen(container: AppContainer, onBack: () -> Unit, onShowMessage: (
     }
 
     if (themeDialog) {
-        ChoiceDialog("Theme", ThemeMode.entries, settings.themeMode, { it.label() }, onDismiss = { themeDialog = false }) {
+        ChoiceDialog(stringResource(R.string.settings_theme), ThemeMode.entries, settings.themeMode, { it.label() }, onDismiss = { themeDialog = false }) {
             scope.launch { s.setThemeMode(it) }; themeDialog = false
         }
     }
     if (equalizerDialog) {
-        ChoiceDialog("Equalizer", EqualizerPreset.entries, settings.equalizerPreset, { it.label() }, onDismiss = { equalizerDialog = false }) {
+        ChoiceDialog(stringResource(R.string.settings_equalizer), EqualizerPreset.entries, settings.equalizerPreset, { it.label() }, onDismiss = { equalizerDialog = false }) {
             scope.launch { s.setEqualizerPreset(it) }; equalizerDialog = false
         }
     }
     if (crossfadeDialog) {
         val options = (0..Crossfade.MAX_SECONDS step 2).toList()
-        ChoiceDialog("Crossfade", options, settings.crossfadeSeconds, { if (it == 0) "Off" else "$it seconds" }, onDismiss = { crossfadeDialog = false }) {
+        ChoiceDialog(stringResource(R.string.settings_crossfade), options, settings.crossfadeSeconds, { if (it == 0) stringResource(R.string.settings_off) else pluralStringResource(R.plurals.settings_crossfade_seconds, it, it) }, onDismiss = { crossfadeDialog = false }) {
             scope.launch { s.setCrossfadeSeconds(it) }; crossfadeDialog = false
         }
     }
     if (cacheDialog) {
-        ChoiceDialog("Song cache", listOf(256, 512, 1024, 2048, 4096), settings.cacheSizeMb, { "$it MB" }, onDismiss = { cacheDialog = false }) {
+        ChoiceDialog(stringResource(R.string.settings_song_cache), listOf(256, 512, 1024, 2048, 4096), settings.cacheSizeMb, { stringResource(R.string.settings_cache_size, it) }, onDismiss = { cacheDialog = false }) {
             scope.launch { s.setCacheSizeMb(it) }; cacheDialog = false
-            onShowMessage("Takes effect after FireTube restarts")
+            onShowMessage(resources.getString(R.string.settings_cache_restart))
         }
     }
     update?.let { u ->
         AlertDialog(
             onDismissRequest = { update = null },
-            title = { Text("Update to ${u.versionName}?") },
-            text = { Text(u.notes.ifBlank { "A new version of FireTube is available." }) },
+            title = { Text(stringResource(R.string.update_title, u.versionName)) },
+            text = { Text(u.notes.ifBlank { stringResource(R.string.update_default_notes) }) },
             confirmButton = {
                 TextButton(onClick = {
                     update = null
                     if (!context.packageManager.canRequestPackageInstalls()) {
-                        onShowMessage("Allow FireTube to install updates, then try again")
+                        onShowMessage(resources.getString(R.string.update_allow_install))
                         context.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, "package:${context.packageName}".toUri()))
                         return@TextButton
                     }
                     scope.launch {
                         installProgress = 0f
                         runCatching { container.updater.install(u) { p -> installProgress = p } }
-                            .onFailure { onShowMessage("Update failed: ${it.message}") }
+                            .onFailure { onShowMessage(resources.getString(R.string.update_failed, it.message)) }
                         installProgress = null
                     }
-                }) { Text("Update") }
+                }) { Text(stringResource(R.string.update_confirm)) }
             },
-            dismissButton = { TextButton(onClick = { update = null }) { Text("Later") } },
+            dismissButton = { TextButton(onClick = { update = null }) { Text(stringResource(R.string.update_later)) } },
         )
     }
 }
@@ -319,7 +330,7 @@ private fun SwitchRow(title: String, subtitle: String, checked: Boolean, onChang
 
 /** A slider that shows its value live but saves once it's let go (not on every step of the drag). */
 @Composable
-private fun SliderRow(title: String, subtitle: (Int) -> String, value: Int, range: IntRange, step: Int, onChange: (Int) -> Unit) {
+private fun SliderRow(title: String, subtitle: @Composable (Int) -> String, value: Int, range: IntRange, step: Int, onChange: (Int) -> Unit) {
     var dragging by remember(value) { mutableFloatStateOf(value.toFloat()) }
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
         Text(title, style = MaterialTheme.typography.bodyLarge)
@@ -335,7 +346,7 @@ private fun SliderRow(title: String, subtitle: (Int) -> String, value: Int, rang
 }
 
 @Composable
-private fun <T> ChoiceDialog(title: String, options: List<T>, selected: T, label: (T) -> String, onDismiss: () -> Unit, onSelect: (T) -> Unit) {
+private fun <T> ChoiceDialog(title: String, options: List<T>, selected: T, label: @Composable (T) -> String, onDismiss: () -> Unit, onSelect: (T) -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
@@ -350,31 +361,38 @@ private fun <T> ChoiceDialog(title: String, options: List<T>, selected: T, label
             }
         },
         confirmButton = {},
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
     )
 }
 
-private fun ThemeMode.label() = when (this) {
-    ThemeMode.SYSTEM -> "System default"
-    ThemeMode.LIGHT -> "Light"
-    ThemeMode.DARK -> "Dark"
-}
+@Composable
+private fun ThemeMode.label() = stringResource(
+    when (this) {
+        ThemeMode.SYSTEM -> R.string.theme_system
+        ThemeMode.LIGHT -> R.string.theme_light
+        ThemeMode.DARK -> R.string.theme_dark
+    },
+)
 
-private fun EqualizerPreset.label() = when (this) {
-    EqualizerPreset.FLAT -> "Off (flat)"
-    EqualizerPreset.BASS -> "Bass boost"
-    EqualizerPreset.TREBLE -> "Treble boost"
-    EqualizerPreset.VOCAL -> "Vocal"
-    EqualizerPreset.ROCK -> "Rock"
-    EqualizerPreset.POP -> "Pop"
-    EqualizerPreset.CLASSICAL -> "Classical"
-}
+@Composable
+private fun EqualizerPreset.label() = stringResource(
+    when (this) {
+        EqualizerPreset.FLAT -> R.string.equalizer_flat
+        EqualizerPreset.BASS -> R.string.equalizer_bass
+        EqualizerPreset.TREBLE -> R.string.equalizer_treble
+        EqualizerPreset.VOCAL -> R.string.equalizer_vocal
+        EqualizerPreset.ROCK -> R.string.equalizer_rock
+        EqualizerPreset.POP -> R.string.equalizer_pop
+        EqualizerPreset.CLASSICAL -> R.string.equalizer_classical
+    },
+)
 
+@Composable
 private fun CloudSync.Status.label() = when (this) {
-    CloudSync.Status.Idle -> "Not synced yet"
-    CloudSync.Status.Syncing -> "Syncing…"
-    is CloudSync.Status.Done -> "Synced ${DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(at))}"
-    is CloudSync.Status.Failed -> "Sync failed: $message"
+    CloudSync.Status.Idle -> stringResource(R.string.sync_status_idle)
+    CloudSync.Status.Syncing -> stringResource(R.string.sync_status_syncing)
+    is CloudSync.Status.Done -> stringResource(R.string.sync_status_done, DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(at)))
+    is CloudSync.Status.Failed -> stringResource(if (message.isBlank()) R.string.sync_status_failed_no_detail else R.string.sync_status_failed, message)
 }
 
 private const val SOURCE_URL = "https://github.com/PalmerinTek/firetube"

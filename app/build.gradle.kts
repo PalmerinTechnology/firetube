@@ -86,7 +86,8 @@ android {
     }
 
     lint {
-        disable += listOf("MissingTranslation")
+        // Every string needs a translation in each values-xx folder (and nothing extra there).
+        error += listOf("MissingTranslation", "ExtraTranslation")
     }
 
     testOptions {

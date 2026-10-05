@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.util.UnstableApi
 import com.palmerintech.firetube.AppContainer
+import com.palmerintech.firetube.R
 import com.palmerintech.firetube.extractor.SearchFilter
 import com.palmerintech.firetube.extractor.SearchResult
 import com.palmerintech.firetube.extractor.Track
@@ -58,6 +59,10 @@ import com.palmerintech.firetube.ui.components.Artwork
 import com.palmerintech.firetube.ui.components.EmptyState
 import com.palmerintech.firetube.ui.components.LocalTrackMenu
 import com.palmerintech.firetube.ui.components.TrackRow
+import com.palmerintech.firetube.ui.message
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 
 @UnstableApi
 @Composable
@@ -77,12 +82,13 @@ fun SearchScreen(
     val focus = LocalFocusManager.current
     val focusRequester = remember { FocusRequester() }
     val menu = LocalTrackMenu.current
+    val loadingTitle = stringResource(R.string.search_loading_track)
 
     LaunchedEffect(Unit) { if (autoFocus && submitted == null) runCatching { focusRequester.requestFocus() } }
 
     fun submit(text: String) {
         when (val link = vm.parseLink(text)) {
-            is SearchViewModel.Link.Video -> container.player.play(listOf(Track(link.id, "Loading…", "", 0, null)))
+            is SearchViewModel.Link.Video -> container.player.play(listOf(Track(link.id, loadingTitle, "", 0, null)))
             is SearchViewModel.Link.Playlist -> onOpenRemotePlaylist(link.url)
             null -> vm.submit(text)
         }
@@ -94,10 +100,10 @@ fun SearchScreen(
             value = query,
             onValueChange = { vm.query = it },
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).focusRequester(focusRequester),
-            placeholder = { Text("Songs, artists, or a YouTube link") },
+            placeholder = { Text(stringResource(R.string.search_hint), maxLines = 1, overflow = TextOverflow.Ellipsis) },
             leadingIcon = { Icon(Icons.Default.Search, null) },
             trailingIcon = {
-                if (query.isNotEmpty()) IconButton(onClick = vm::clear) { Icon(Icons.Default.Clear, "Clear") }
+                if (query.isNotEmpty()) IconButton(onClick = vm::clear) { Icon(Icons.Default.Clear, stringResource(R.string.search_clear)) }
             },
             singleLine = true,
             shape = MaterialTheme.shapes.extraLarge,
@@ -114,13 +120,13 @@ fun SearchScreen(
                 if (recentSearches.isNotEmpty()) {
                     item {
                         Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text("Recent searches", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-                            TextButton(onClick = { vm.clearRecent() }) { Text("Clear") }
+                            Text(stringResource(R.string.search_recent), style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                            TextButton(onClick = { vm.clearRecent() }) { Text(stringResource(R.string.history_clear)) }
                         }
                     }
                     items(recentSearches) { s -> SuggestionRow(Icons.Default.History, s) { submit(s) } }
                 } else {
-                    item { EmptyState(Icons.Default.Search, "Find something to play", "Search for a song or artist, or paste a YouTube link.") }
+                    item { EmptyState(Icons.Default.Search, stringResource(R.string.search_empty), stringResource(R.string.search_empty_body)) }
                 }
             }
             else -> {
@@ -147,11 +153,11 @@ private fun Results(
 ) {
     when (results) {
         null, Load.Loading -> Box(Modifier.fillMaxWidth().padding(48.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-        is Load.Failed -> EmptyState(Icons.Default.CloudOff, "Search failed", results.message)
+        is Load.Failed -> EmptyState(Icons.Default.CloudOff, stringResource(R.string.search_failed), results.message)
         is Load.Ready -> {
             val r = results.value
             if (r.items.isEmpty()) {
-                EmptyState(Icons.Default.SearchOff, "No results", "Try different words.")
+                EmptyState(Icons.Default.SearchOff, stringResource(R.string.search_no_results), stringResource(R.string.search_no_results_body))
                 return
             }
             val listState = rememberLazyListState()
@@ -171,7 +177,7 @@ private fun Results(
                             Column(Modifier.weight(1f)) {
                                 Text(item.playlist.title, style = MaterialTheme.typography.bodyLarge, maxLines = 1)
                                 Text(
-                                    listOf(item.playlist.owner, "${item.playlist.trackCount} songs").filter { it.isNotBlank() }.joinToString(" • "),
+                                    listOf(item.playlist.owner, pluralStringResource(R.plurals.song_count, item.playlist.trackCount.toInt(), item.playlist.trackCount)).filter { it.isNotBlank() }.joinToString(" • "),
                                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,
                                 )
                             }
@@ -194,9 +200,12 @@ private fun SuggestionRow(icon: androidx.compose.ui.graphics.vector.ImageVector,
     }
 }
 
-private fun SearchFilter.label() = when (this) {
-    SearchFilter.SONGS -> "Songs"
-    SearchFilter.VIDEOS -> "Videos"
-    SearchFilter.PLAYLISTS -> "Playlists"
-}
+@Composable
+private fun SearchFilter.label() = stringResource(
+    when (this) {
+        SearchFilter.SONGS -> R.string.search_filter_songs
+        SearchFilter.VIDEOS -> R.string.search_filter_videos
+        SearchFilter.PLAYLISTS -> R.string.library_playlists
+    },
+)
 

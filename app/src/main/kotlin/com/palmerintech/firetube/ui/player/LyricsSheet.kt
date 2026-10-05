@@ -44,6 +44,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -52,11 +53,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.util.UnstableApi
 import com.palmerintech.firetube.AppContainer
+import com.palmerintech.firetube.R
 import com.palmerintech.firetube.lyrics.Lrc
 import com.palmerintech.firetube.lyrics.LrcLine
 import com.palmerintech.firetube.lyrics.LyricsResult
 import com.palmerintech.firetube.player.PlayerUiState
 import com.palmerintech.firetube.ui.Load
+import com.palmerintech.firetube.ui.message
 import com.palmerintech.firetube.ui.components.focusRing
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -80,14 +83,14 @@ internal fun LyricsSheet(container: AppContainer, state: PlayerUiState, onDismis
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Load.Failed(if (e is UnknownHostException || e is ConnectException) "You're offline." else "Couldn't load lyrics right now.")
+            Load.Failed(if (e is UnknownHostException || e is ConnectException) R.string.error_offline else R.string.lyrics_error)
         }
     }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.fillMaxHeight(0.9f).navigationBarsPadding()) {
             Column(Modifier.padding(horizontal = 16.dp)) {
-                Text("Lyrics", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.lyrics_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Text(
                     "${track.title} · ${track.artist}", style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -95,7 +98,7 @@ internal fun LyricsSheet(container: AppContainer, state: PlayerUiState, onDismis
             }
             LyricsBody(load, rememberPlaybackClock(state), container.player::seekTo, { attempt++ }, Modifier.weight(1f))
             Text(
-                "Lyrics from LRCLIB", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                stringResource(R.string.lyrics_source), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.fillMaxWidth().padding(8.dp), textAlign = TextAlign.Center,
             )
         }
@@ -150,13 +153,13 @@ internal fun LyricsBody(
             Load.Loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
             is Load.Failed -> Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
                 Message(load.message)
-                TextButton(onClick = onRetry) { Text("Try again") }
+                TextButton(onClick = onRetry) { Text(stringResource(R.string.action_try_again)) }
             }
             is Load.Ready -> when (val result = load.value) {
                 is LyricsResult.Synced -> SyncedLyrics(result.lines, positionMs, onSeek)
                 is LyricsResult.Plain -> PlainLyrics(result.text)
-                LyricsResult.Instrumental -> Message("This song is an instrumental.", Modifier.align(Alignment.Center))
-                LyricsResult.NotFound -> Message("No lyrics found for this song.", Modifier.align(Alignment.Center))
+                LyricsResult.Instrumental -> Message(stringResource(R.string.lyrics_instrumental), Modifier.align(Alignment.Center))
+                LyricsResult.NotFound -> Message(stringResource(R.string.lyrics_not_found), Modifier.align(Alignment.Center))
             }
         }
     }
@@ -233,7 +236,7 @@ private fun SyncedLyrics(lines: List<LrcLine>, positionMs: () -> Long, onSeek: (
                         .focusRing(shape)
                         .clip(shape)
                         // Follow again from the tapped line once playback gets there.
-                        .clickable(onClickLabel = "Jump to this line") { heldUntil = 0; onSeek(line.timeMs) }
+                        .clickable(onClickLabel = stringResource(R.string.lyrics_jump_to_line)) { heldUntil = 0; onSeek(line.timeMs) }
                         .semantics { selected = isCurrent }
                         .padding(horizontal = 16.dp, vertical = 10.dp),
                 )

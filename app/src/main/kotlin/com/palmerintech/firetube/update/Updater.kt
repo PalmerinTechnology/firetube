@@ -142,13 +142,13 @@ private fun notifyConfirm(context: Context, confirm: Intent) {
     val manager = NotificationManagerCompat.from(context)
     if (!manager.areNotificationsEnabled()) return
     manager.createNotificationChannel(
-        NotificationChannelCompat.Builder(UPDATE_CHANNEL, NotificationManagerCompat.IMPORTANCE_HIGH).setName("App updates").build(),
+        NotificationChannelCompat.Builder(UPDATE_CHANNEL, NotificationManagerCompat.IMPORTANCE_HIGH).setName(context.getString(R.string.update_channel)).build(),
     )
     val tap = PendingIntent.getActivity(context, 0, confirm, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
     val notification = NotificationCompat.Builder(context, UPDATE_CHANNEL)
         .setSmallIcon(R.drawable.ic_notification)
-        .setContentTitle("FireTube update ready")
-        .setContentText("Tap to finish installing")
+        .setContentTitle(context.getString(R.string.update_ready_title))
+        .setContentText(context.getString(R.string.update_ready_text))
         .setContentIntent(tap)
         .setAutoCancel(true)
         .build()

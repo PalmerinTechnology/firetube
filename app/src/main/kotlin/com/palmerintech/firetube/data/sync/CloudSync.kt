@@ -83,7 +83,7 @@ class CloudSync(
                 _status.value = Status.Done(System.currentTimeMillis())
             } catch (e: Exception) {
                 Timber.w(e, "Sync failed")
-                _status.value = Status.Failed(e.message ?: "Sync failed")
+                _status.value = Status.Failed(e.message.orEmpty())
             }
         }
     }
