@@ -15,6 +15,7 @@ import com.palmerintech.firetube.player.QueueStore
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -111,22 +112,31 @@ class StaleWidgetTest {
         NowPlayingWidget.push(context, playing, art = null)
         loaded.complete(WidgetModel(other))
 
-        val deadline = System.currentTimeMillis() + 5_000
-        while (!redraw.isCompleted && System.currentTimeMillis() < deadline) {
-            shadowOf(Looper.getMainLooper()).idle()
-            Thread.sleep(10)
-        }
-        assertTrue(redraw.isCompleted)
+        awaitCompletion(redraw)
         awaitWidget(id, title = "Song", playButton = "Pause")
     }
 
     @Test
     fun idleDrawLandsWithoutAPlayer() {
+        // Something saved, so onUpdate's own redraw is visible and can be waited out before ours.
+        store.saveNow(listOf(song), index = 0, positionMs = 0)
         val host = shadowOf(AppWidgetManager.getInstance(context))
         val id = host.createWidget(NowPlayingWidget::class.java, R.layout.widget_now_playing)
+        awaitWidget(id, title = "Song", playButton = "Play")
         val redraw = CoroutineScope(Dispatchers.Default).launch { NowPlayingWidget.drawIdle(context) { WidgetModel(other) } }
+        // The draw happens on main, but the coroutine finishes back on Default: wait for both.
+        awaitCompletion(redraw)
         awaitWidget(id, title = "Other", playButton = "Play")
-        assertTrue(redraw.isCompleted)
+    }
+
+    /** Runs the main looper (where the draw happens) until [job] finishes, which it must within 5s. */
+    private fun awaitCompletion(job: Job) {
+        val deadline = System.currentTimeMillis() + 5_000
+        while (!job.isCompleted && System.currentTimeMillis() < deadline) {
+            shadowOf(Looper.getMainLooper()).idle()
+            Thread.sleep(10)
+        }
+        assertTrue("redraw didn't finish", job.isCompleted)
     }
 
     /** Redraws without a player load the saved queue in the background; wait for one to land. */
