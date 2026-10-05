@@ -18,8 +18,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.guava.future
 
 /**
- * The browse tree for Android Auto and other media browsers, plus rebuilding play URIs for items
- * that arrive from other processes.
+ * The browse tree for Android Auto and other media browsers, rebuilding play URIs for items
+ * that arrive from other processes, and resuming the saved queue.
  */
 @UnstableApi
 class LibraryCallback(
@@ -50,6 +50,24 @@ class LibraryCallback(
             // An empty result would replace the queue with nothing (e.g. a misheard voice search).
             if (it.isEmpty()) throw UnsupportedOperationException("Nothing to play")
         }
+    }
+
+    /**
+     * Play pressed while the player is empty — e.g. on the home-screen widget after FireTube was
+     * closed, before the service's own restore has finished: pick up the saved queue.
+     */
+    override fun onPlaybackResumption(
+        mediaSession: MediaSession,
+        controller: MediaSession.ControllerInfo,
+        isForPlayback: Boolean,
+    ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> = scope.future {
+        val saved = container.queueStore.load()?.takeIf { it.tracks.isNotEmpty() }
+            ?: throw UnsupportedOperationException("No saved queue")
+        MediaSession.MediaItemsWithStartPosition(
+            saved.tracks.map { MediaItems.of(it.toTrack()) },
+            saved.index.coerceIn(0, saved.tracks.lastIndex),
+            saved.positionMs,
+        )
     }
 
     override fun onGetLibraryRoot(

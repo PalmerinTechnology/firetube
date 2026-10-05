@@ -1,3 +1,8 @@
 <resources>
     <color name="splash_background">#121212</color>
+    <color name="widget_surface">#211715</color>
+    <color name="widget_text">#F1DFDC</color>
+    <color name="widget_text_secondary">#D8C2BE</color>
+    <color name="widget_art_placeholder">#372A28</color>
+    <color name="widget_ripple">#33FFFFFF</color>
 </resources>

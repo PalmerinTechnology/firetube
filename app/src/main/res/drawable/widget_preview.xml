@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The widget picker's preview before Android 12 (later versions render layout/widget_now_playing). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp" android:height="45dp"
+    android:viewportWidth="320" android:viewportHeight="72">
+    <!-- Background -->
+    <path android:fillColor="@color/widget_surface"
+        android:pathData="M16,0 H304 A16,16 0 0 1 320,16 V56 A16,16 0 0 1 304,72 H16 A16,16 0 0 1 0,56 V16 A16,16 0 0 1 16,0 Z" />
+    <!-- Artwork placeholder with the flame -->
+    <path android:fillColor="@color/widget_art_placeholder"
+        android:pathData="M20,12 H52 A8,8 0 0 1 60,20 V52 A8,8 0 0 1 52,60 H20 A8,8 0 0 1 12,52 V20 A8,8 0 0 1 20,12 Z" />
+    <group android:scaleX="0.45" android:scaleY="0.45" android:translateX="10.46" android:translateY="11.25">
+        <path android:fillColor="@color/brand_red" android:fillType="evenOdd"
+            android:pathData="M56,27 C68,40 74,55 71,68 C69,78 62,83 54.5,83 C46.5,83 40,77.5 39.5,70 C39,62.5 45,56.5 50.5,51 C55,46.5 57.5,38 56,27 Z M54.5,63 A9,9 0 1,0 54.5,81 A9,9 0 1,0 54.5,63 Z" />
+    </group>
+    <!-- Title and artist -->
+    <path android:fillColor="@color/widget_text"
+        android:pathData="M76,24 H176 A4,4 0 0 1 176,32 H76 A4,4 0 0 1 76,24 Z" />
+    <path android:fillColor="@color/widget_text_secondary" android:fillAlpha="0.6"
+        android:pathData="M75,41 H137 A3,3 0 0 1 137,47 H75 A3,3 0 0 1 75,41 Z" />
+    <!-- Previous, pause, next -->
+    <group android:translateX="204" android:translateY="24">
+        <path android:fillColor="@color/widget_text" android:pathData="M6,6h2v12H6zM9.5,12l8.5,6V6z" />
+    </group>
+    <path android:fillColor="@color/brand_red" android:pathData="M232,36 a22,22 0 1,0 44,0 a22,22 0 1,0 -44,0 Z" />
+    <group android:translateX="242" android:translateY="24">
+        <path android:fillColor="@color/widget_on_play" android:pathData="M6,19h4V5H6v14zM14,5v14h4V5h-4z" />
+    </group>
+    <group android:translateX="282" android:translateY="24">
+        <path android:fillColor="@color/widget_text" android:pathData="M6,18l8.5,-6L6,6v12zM16,6v12h2V6h-2z" />
+    </group>
+</vector>

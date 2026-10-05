@@ -24,6 +24,7 @@ import com.palmerintech.firetube.R
 import com.palmerintech.firetube.extractor.Track
 import com.palmerintech.firetube.player.cast.CastItemConverter
 import com.palmerintech.firetube.ui.MainActivity
+import com.palmerintech.firetube.widget.WidgetUpdater
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -41,7 +42,7 @@ import java.net.UnknownHostException
  * Owns the player. Media3 gives us the notification, lock screen, Bluetooth/headset buttons,
  * audio focus, Android Auto and Chromecast hand-off from the session; this class adds FireTube's
  * behaviour on top: history, autoplay radio, SponsorBlock skipping, the sleep timer, error
- * recovery and queue restore.
+ * recovery, queue restore and the home-screen widget.
  */
 @UnstableApi
 class PlaybackService : MediaLibraryService() {
@@ -55,6 +56,7 @@ class PlaybackService : MediaLibraryService() {
     /** What the session controls: [exoPlayer], or a [CastPlayer] wrapping it that moves playback to a Chromecast. */
     private lateinit var player: Player
     private var session: MediaLibrarySession? = null
+    private lateinit var widget: WidgetUpdater
 
     private val leveler = VolumeLeveler()
     private var skipJob: Job? = null
@@ -102,6 +104,7 @@ class PlaybackService : MediaLibraryService() {
             exoPlayer
         }
         player.addListener(listener)
+        widget = WidgetUpdater(this, player, scope).also { it.start() }
 
         val openApp = PendingIntent.getActivity(
             this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
@@ -133,6 +136,7 @@ class PlaybackService : MediaLibraryService() {
     override fun onDestroy() {
         // Synchronous: the scope is about to be cancelled.
         snapshotQueue()?.let { (tracks, index, position) -> container.queueStore.saveNow(tracks, index, position) }
+        widget.stop()
         session?.release()
         session = null
         player.release() // a CastPlayer releases the ExoPlayer it wraps
