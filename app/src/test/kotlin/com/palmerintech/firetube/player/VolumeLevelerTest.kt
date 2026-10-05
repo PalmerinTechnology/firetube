@@ -138,6 +138,16 @@ class VolumeLevelerTest {
     }
 
     @Test
+    fun headroomKeepsPeaksBelowFullScaleForTheEqualizer() {
+        // Off, but an equalizer boosting by 6 dB follows: the output must leave that much room.
+        val l = leveler().apply { enabled = false; headroomDb = 6.0 }
+        val out = l.play(levelDb = -6.0, seconds = 1.0)
+        val ceiling = 32767 * Math.pow(10.0, -6.0 / 20)
+        assertTrue(out.all { abs(it.toInt()) <= ceiling + 1 })
+        assertEquals(-12.0, out.rmsDb(), 0.2)
+    }
+
+    @Test
     fun silenceDoesNotRaiseTheGain() {
         val l = leveler()
         l.play(levelDb = VolumeLeveler.TARGET_DB, seconds = 20.0)

@@ -8,6 +8,7 @@ import androidx.media3.cast.RemoteCastPlayer
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -41,7 +42,7 @@ import java.net.UnknownHostException
  * Owns the player. Media3 gives us the notification, lock screen, Bluetooth/headset buttons,
  * audio focus, Android Auto and Chromecast hand-off from the session; this class adds FireTube's
  * behaviour on top: history, autoplay radio, SponsorBlock skipping, the sleep timer, error
- * recovery and queue restore.
+ * recovery, queue restore and the audio settings (equalizer, crossfade, speed).
  */
 @UnstableApi
 class PlaybackService : MediaLibraryService() {
@@ -57,6 +58,9 @@ class PlaybackService : MediaLibraryService() {
     private var session: MediaLibrarySession? = null
 
     private val leveler = VolumeLeveler()
+    private val effects = AudioEffects(leveler)
+    private val crossfade = Crossfade()
+    private var crossfadeJob: Job? = null
     private var skipJob: Job? = null
     private var extendJob: Job? = null
 
@@ -102,6 +106,9 @@ class PlaybackService : MediaLibraryService() {
             exoPlayer
         }
         player.addListener(listener)
+        // Effects, fades and speed are the phone's own audio, so they follow the ExoPlayer directly.
+        exoPlayer.addListener(audioListener)
+        effects.attach(exoPlayer.audioSessionId)
 
         val openApp = PendingIntent.getActivity(
             this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
@@ -115,7 +122,16 @@ class PlaybackService : MediaLibraryService() {
         )
 
         scope.launch { container.sleepTimer.fired.collect { player.pause() } }
-        scope.launch { container.settings.settings.collect { leveler.enabled = it.volumeLeveling } }
+        scope.launch {
+            container.settings.settings.collect {
+                leveler.enabled = it.volumeLeveling
+                effects.update(it.equalizerPreset, it.bassBoost)
+                crossfade.lengthMs = it.crossfadeSeconds * 1000L
+                applyCrossfade()
+                val speed = PlaybackSpeed.clamp(it.playbackSpeed)
+                if (exoPlayer.playbackParameters.speed != speed) exoPlayer.playbackParameters = PlaybackParameters(speed)
+            }
+        }
         // "End of song": let the phone's player pause itself exactly at the end of the current item.
         scope.launch {
             container.sleepTimer.state.collect { exoPlayer.pauseAtEndOfMediaItems = it == SleepTimer.State.EndOfTrack }
@@ -135,6 +151,7 @@ class PlaybackService : MediaLibraryService() {
         snapshotQueue()?.let { (tracks, index, position) -> container.queueStore.saveNow(tracks, index, position) }
         session?.release()
         session = null
+        effects.release()
         player.release() // a CastPlayer releases the ExoPlayer it wraps
         container.castServer.stop()
         scope.cancel()
@@ -216,6 +233,52 @@ class PlaybackService : MediaLibraryService() {
         }
     }
 
+    /** The phone's player only: crossfade volume and the audio session for effects. */
+    private val audioListener = object : Player.Listener {
+        override fun onAudioSessionIdChanged(audioSessionId: Int) = effects.attach(audioSessionId)
+
+        override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            crossfade.onItemTransition(automatic = reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO)
+            applyCrossfade()
+        }
+
+        override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
+            if (reason != Player.DISCONTINUITY_REASON_SEEK || oldPosition.mediaItemIndex != newPosition.mediaItemIndex) return
+            crossfade.onSeek(newPosition.positionMs, exoPlayer.duration, exoPlayer.playbackParameters.speed)
+            applyCrossfade()
+        }
+
+        override fun onIsPlayingChanged(isPlaying: Boolean) = applyCrossfade()
+    }
+
+    /**
+     * Sets the phone player's volume from [crossfade], and keeps doing so while playing: often
+     * around a fade, rarely otherwise. Only the ExoPlayer's volume — never a Chromecast's.
+     */
+    private fun applyCrossfade() {
+        crossfadeJob?.cancel()
+        if (crossfade.lengthMs == 0L) {
+            exoPlayer.volume = 1f
+            return
+        }
+        fun update(): Boolean {
+            val position = exoPlayer.currentPosition
+            val duration = exoPlayer.duration.takeIf { it != C.TIME_UNSET } ?: 0
+            val speed = exoPlayer.playbackParameters.speed
+            val canFadeOut = exoPlayer.hasNextMediaItem() && exoPlayer.repeatMode != Player.REPEAT_MODE_ONE &&
+                !exoPlayer.pauseAtEndOfMediaItems
+            exoPlayer.volume = crossfade.volume(position, duration, speed, canFadeOut)
+            return crossfade.active(position, duration, speed)
+        }
+        update()
+        if (!exoPlayer.isPlaying) return
+        crossfadeJob = scope.launch {
+            while (isActive) {
+                delay(if (update()) FADE_TICK_MS else IDLE_TICK_MS)
+            }
+        }
+    }
+
     private fun isCasting() = player.deviceInfo.playbackType == androidx.media3.common.DeviceInfo.PLAYBACK_TYPE_REMOTE
 
     /** Writes the current item to history, once per play, only when audio is actually playing. */
@@ -276,10 +339,14 @@ class PlaybackService : MediaLibraryService() {
         skipJob = scope.launch {
             if (!container.settings.current().sponsorBlock) return@launch
             val segments = container.sponsorBlock.segments(videoId)
-            if (segments.isEmpty()) return@launch
+            if (segments.isEmpty() || player.currentMediaItem?.mediaId != videoId) return@launch
+            crossfade.setSegments(segments)
             while (isActive && player.currentMediaItem?.mediaId == videoId) {
                 val pos = player.currentPosition
-                segments.firstOrNull { pos in it && it.last - pos > 1000 }?.let { player.seekTo(it.last) }
+                segments.firstOrNull { pos in it && it.last - pos > 1000 }?.let {
+                    crossfade.onSegmentSkip()
+                    player.seekTo(it.last)
+                }
                 delay(500)
             }
         }
@@ -310,6 +377,8 @@ class PlaybackService : MediaLibraryService() {
 
     private companion object {
         const val MAX_CONSECUTIVE_FAILURES = 3
+        const val FADE_TICK_MS = 50L
+        const val IDLE_TICK_MS = 500L
     }
 }
 
