@@ -377,4 +377,4 @@ private fun CloudSync.Status.label() = when (this) {
     is CloudSync.Status.Failed -> "Sync failed: $message"
 }
 
-private const val SOURCE_URL = "https://github.com/PalmerinTechnology/firetube"
+private const val SOURCE_URL = "https://github.com/PalmerinTek/firetube"

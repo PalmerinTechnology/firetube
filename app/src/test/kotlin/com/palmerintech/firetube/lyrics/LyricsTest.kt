@@ -42,7 +42,7 @@ class LyricsTest {
             Response.Builder().request(req).protocol(Protocol.HTTP_1_1).code(code).message("")
                 .body(body.toResponseBody("application/json".toMediaType())).build()
         }.build()
-        return Lyrics(client, "FireTube/test (https://github.com/PalmerinTechnology/firetube)")
+        return Lyrics(client, "FireTube/test (https://github.com/PalmerinTek/firetube)")
     }
 
     private val track = Track("vid1", "Artist - Song (Official Video)", "ArtistVEVO", 200, null)
