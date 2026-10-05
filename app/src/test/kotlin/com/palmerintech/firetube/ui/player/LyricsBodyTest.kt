@@ -78,6 +78,16 @@ class LyricsBodyTest {
     }
 
     @Test
+    fun `the position estimate follows the playback speed`() {
+        assertEquals(10_400L, estimatePosition(10_000, reportedAt = 500, now = 700, playing = true, speed = 2f))
+        assertEquals(10_150L, estimatePosition(10_000, reportedAt = 500, now = 700, playing = true, speed = 0.75f))
+        assertEquals(10_250L, estimatePosition(10_000, reportedAt = 500, now = 700, playing = true, speed = 1.25f))
+        // The cap is on time since the report, then scaled: at 2x, 750 ms of waiting is 1.5 s of song.
+        assertEquals(11_500L, estimatePosition(10_000, reportedAt = 500, now = 5_000, playing = true, speed = 2f))
+        assertEquals(10_000L, estimatePosition(10_000, reportedAt = 500, now = 700, playing = false, speed = 2f))
+    }
+
+    @Test
     fun `instrumental gaps show a note`() {
         show(Load.Ready(LyricsResult.Synced(listOf(LrcLine(0, "Sing"), LrcLine(4_000, "")))))
         compose.onNodeWithText("♪").assertIsDisplayed()

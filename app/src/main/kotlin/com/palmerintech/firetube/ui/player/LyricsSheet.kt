@@ -62,6 +62,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import java.net.ConnectException
 import java.net.UnknownHostException
+import kotlin.math.roundToLong
 
 /** Lyrics for the current track, following playback when they're synced. */
 @UnstableApi
@@ -104,7 +105,8 @@ internal fun LyricsSheet(container: AppContainer, state: PlayerUiState, onDismis
 /**
  * The playback position, read as a function so only what uses it recomposes. The player reports
  * it twice a second; in between it's estimated from the time since, so a line lights up when it
- * starts rather than up to half a second late. (Assumes normal speed; each report corrects it.)
+ * starts rather than up to half a second late, at the current playback speed. Each report
+ * corrects the estimate.
  */
 @Composable
 private fun rememberPlaybackClock(state: PlayerUiState): () -> Long {
@@ -113,6 +115,7 @@ private fun rememberPlaybackClock(state: PlayerUiState): () -> Long {
     val reported by rememberUpdatedState(state.positionMs)
     val anchor by rememberUpdatedState(reportedAt)
     val running by rememberUpdatedState(playing)
+    val speed by rememberUpdatedState(state.speed)
     var now by remember { mutableLongStateOf(SystemClock.uptimeMillis()) }
     LaunchedEffect(playing) {
         while (playing) {
@@ -120,13 +123,18 @@ private fun rememberPlaybackClock(state: PlayerUiState): () -> Long {
             delay(CLOCK_STEP_MS)
         }
     }
-    // TODO: scale the elapsed time by playback speed once PlayerUiState has it (PR #34).
-    return remember { { estimatePosition(reported, anchor, now, running) } }
+    return remember { { estimatePosition(reported, anchor, now, running, speed) } }
 }
 
-/** [reportedMs] plus the time since it was reported at [reportedAt], while playing; capped. */
-internal fun estimatePosition(reportedMs: Long, reportedAt: Long, now: Long, playing: Boolean): Long =
-    if (!playing) reportedMs else reportedMs + (now - reportedAt).coerceIn(0, MAX_ESTIMATE_MS)
+/**
+ * [reportedMs] plus the time since it was reported at [reportedAt], while playing, at [speed]
+ * (song time runs twice as fast at 2x). The elapsed time is capped, in case reports stop.
+ */
+internal fun estimatePosition(reportedMs: Long, reportedAt: Long, now: Long, playing: Boolean, speed: Float = 1f): Long {
+    if (!playing) return reportedMs
+    val elapsed = (now - reportedAt).coerceIn(0, MAX_ESTIMATE_MS)
+    return reportedMs + (elapsed * speed.coerceAtLeast(0f)).roundToLong()
+}
 
 /** The sheet's content for each lookup state; separate from [LyricsSheet] so it can be tested. */
 @Composable
@@ -258,5 +266,5 @@ private const val HOLD_MS = 4000L
 /** How often the estimated position advances between the player's reports. */
 private const val CLOCK_STEP_MS = 50L
 
-/** Never estimate further than this past a report (a bit over the player's 500 ms interval). */
+/** Never estimate further than this (wall time) past a report; the player reports at least every 500 ms. */
 private const val MAX_ESTIMATE_MS = 750L
