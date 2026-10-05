@@ -28,8 +28,13 @@ class ListenCounter(
     /** [elapsed] when audio last started, or -1 while not playing. */
     private var playingSince = -1L
 
-    /** A new item (or the same one repeating) became current. Returns the previous listen if it counts. */
-    fun onItem(next: Track?, isPlaying: Boolean): Listen? {
+    /**
+     * A new item (or the same one repeating) became current. Returns the previous listen if it counts.
+     * [playlistChanged]: the queue was replaced. If the song is still the same one, as when playback
+     * moves to or from a Chromecast, it's the same listen and keeps counting.
+     */
+    fun onItem(next: Track?, isPlaying: Boolean, playlistChanged: Boolean = false): Listen? {
+        if (playlistChanged && next != null && next.id == track?.id) return onPlaying(isPlaying)
         val done = current()
         track = next
         startedAt = 0L
@@ -85,7 +90,8 @@ class ListenTracker(private val player: Player, private val library: LibraryRepo
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-        save(counter.onItem(mediaItem?.let(MediaItems::trackOf), player.isPlaying))
+        val playlistChanged = reason == Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED
+        save(counter.onItem(mediaItem?.let(MediaItems::trackOf), player.isPlaying, playlistChanged))
     }
 
     override fun onIsPlayingChanged(isPlaying: Boolean) {

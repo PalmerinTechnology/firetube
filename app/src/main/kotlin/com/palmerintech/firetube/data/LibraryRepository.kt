@@ -3,7 +3,6 @@ package com.palmerintech.firetube.data
 import com.palmerintech.firetube.data.db.HistoryEntity
 import com.palmerintech.firetube.data.db.LibraryDao
 import com.palmerintech.firetube.data.db.PlayEntity
-import com.palmerintech.firetube.data.db.PlayTime
 import com.palmerintech.firetube.data.db.PlaylistEntity
 import com.palmerintech.firetube.data.db.PlaylistEntity.Companion.FAVORITES_ID
 import com.palmerintech.firetube.data.db.PlaylistWithCount
@@ -16,7 +15,9 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.time.ZoneId
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * The user's library on this device: playlists (incl. Favorites) and play history.
@@ -108,9 +109,9 @@ class LibraryRepository(private val dao: LibraryDao) {
         dao.clearPlays()
     }
 
-    // --- Stats (device-only: plays aren't synced or backed up) ---
+    // --- Stats (plays aren't synced or put in backup files; Android's device backup has them) ---
 
-    private var prunedPlays = false
+    private val prunedPlays = AtomicBoolean(false)
 
     /**
      * Saves (or updates) one listen once it counts as a play. Called again as the same listen
@@ -121,14 +122,17 @@ class LibraryRepository(private val dao: LibraryDao) {
         else if (dao.track(track.id) == null) return
         dao.savePlay(PlayEntity(track.id, startedAt, msListened))
         // Keep the table bounded; once per run is plenty.
-        if (!prunedPlays) {
-            prunedPlays = true
-            dao.prunePlays(now() - PLAYS_KEPT_MS)
-        }
+        if (prunedPlays.compareAndSet(false, true)) dao.prunePlays(now() - PLAYS_KEPT_MS)
     }
 
     fun trackPlays(from: Long): Flow<List<TrackPlays>> = dao.observeTrackPlays(from)
-    fun playTimes(from: Long): Flow<List<PlayTime>> = dao.observePlayTimes(from)
+
+    /**
+     * Stats for plays since [from]. One source: the hour chart is read with each emission of the
+     * per-song totals, so the two never disagree for a frame.
+     */
+    fun listeningStats(from: Long, zone: ZoneId): Flow<ListeningStats> =
+        dao.observeTrackPlays(from).map { tracks -> ListeningStats.of(tracks, dao.playTimes(from), zone) }
 
     val playCount: Flow<Int> = dao.observePlayCount()
 

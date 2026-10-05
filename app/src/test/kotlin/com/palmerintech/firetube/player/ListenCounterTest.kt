@@ -64,6 +64,30 @@ class ListenCounterTest {
     }
 
     @Test
+    fun castHandOffOfTheSameSongIsOneListen() {
+        val t = track("a")
+        counter.onItem(t, isPlaying = true)
+        val startedAt = wall
+        pass(40_000)
+        // Moving to a Chromecast replaces the queue with the same song; it may pause meanwhile.
+        assertEquals(40_000L, counter.onItem(t, isPlaying = false, playlistChanged = true)!!.msListened)
+        pass(3_000)
+        counter.onPlaying(true)
+        pass(20_000)
+        val listen = counter.onItem(track("b"), isPlaying = true)!!
+        assertEquals(60_000L, listen.msListened)
+        assertEquals(startedAt, listen.startedAt)
+    }
+
+    @Test
+    fun newQueueWithADifferentSongStartsANewListen() {
+        counter.onItem(track("a"), isPlaying = true)
+        pass(40_000)
+        assertEquals("a", counter.onItem(track("b"), isPlaying = true, playlistChanged = true)!!.track.id)
+        assertEquals("b", counter.current()!!.track.id)
+    }
+
+    @Test
     fun skippedSongIsNotAPlay() {
         counter.onItem(track("a"), isPlaying = true)
         pass(29_999)

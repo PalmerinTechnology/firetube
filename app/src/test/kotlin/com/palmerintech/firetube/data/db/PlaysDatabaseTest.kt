@@ -96,7 +96,9 @@ class PlaysDatabaseTest {
         assertEquals(300_000L, recent.getValue(song.id).msListened)
         assertEquals(1, recent.getValue(other.id).plays)
         assertEquals(4, library.trackPlays(0).first().sumOf { it.plays })
-        assertEquals(3, library.playTimes(now - 20_000_000).first().size)
+        val stats = library.listeningStats(now - 20_000_000, java.time.ZoneId.of("UTC")).first()
+        assertEquals(3, stats.plays)
+        assertEquals("the hour chart comes from the same read", stats.msListened, stats.byHour.sum())
 
         library.clearHistory()
         assertTrue(library.trackPlays(0).first().isEmpty())
@@ -111,7 +113,7 @@ class PlaysDatabaseTest {
         dao.savePlay(PlayEntity(song.id, now - 300 * DAY, 60_000))
         // The first save of a run prunes anything older than two years.
         LibraryRepository(dao).recordListen(song, now, 60_000)
-        assertEquals(listOf(now - 300 * DAY, now), dao.observePlayTimes(0).first().map { it.startedAt }.sorted())
+        assertEquals(listOf(now - 300 * DAY, now), dao.playTimes(0).map { it.startedAt }.sorted())
     }
 
     @Test

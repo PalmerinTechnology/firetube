@@ -71,7 +71,8 @@ data class HistoryEntity(
 /**
  * One listen, for Your stats: how long a song actually played, not counting time paused,
  * buffering or skipped (SponsorBlock jumps). Written only once it counts as a play (see
- * [com.palmerintech.firetube.player.ListenCounter]). Device-only: never synced or backed up.
+ * [com.palmerintech.firetube.player.ListenCounter]). Never synced or put in backup files, but
+ * Android's device backup includes it with the rest of the database.
  * Unlike [HistoryEntity], which is written as soon as a song starts.
  */
 @Entity(

@@ -143,5 +143,5 @@ interface LibraryDao {
     fun observeTrackPlays(from: Long): Flow<List<TrackPlays>>
 
     @Query("SELECT startedAt, msListened FROM plays WHERE startedAt >= :from")
-    fun observePlayTimes(from: Long): Flow<List<PlayTime>>
+    suspend fun playTimes(from: Long): List<PlayTime>
 }

@@ -193,18 +193,23 @@ private fun ArtistRow(index: Int, artist: ArtistStats, onClick: () -> Unit) {
 private fun HourChart(byHour: List<Long>) {
     val bar = MaterialTheme.colorScheme.primary
     val empty = MaterialTheme.colorScheme.surfaceContainerHighest
-    val peak = byHour.indices.maxBy { byHour[it] }
+    val peak = byHour.indices.maxBy { byHour[it] }.takeIf { byHour[it] > 0 }
     val hourFormat = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)
     val hour = { h: Int -> LocalTime.of(h, 0).format(hourFormat) }
     Column(Modifier.padding(horizontal = 16.dp)) {
-        Text(
-            "Most around ${hour(peak)}",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 12.dp),
-        )
+        val busiest = peak?.let { "Most around ${hour(it)}" }
+        if (busiest != null) {
+            Text(
+                busiest,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 12.dp),
+            )
+        }
         Canvas(
-            Modifier.fillMaxWidth().height(96.dp).semantics { contentDescription = "Listening by hour of day, most around ${hour(peak)}" },
+            Modifier.fillMaxWidth().height(96.dp).semantics {
+                contentDescription = listOfNotNull("Listening by hour of day", busiest?.lowercase()).joinToString(", ")
+            },
         ) {
             val gap = 3.dp.toPx()
             val w = (size.width - gap * 23) / 24

@@ -37,12 +37,16 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
+import java.time.ZonedDateTime
 
 @UnstableApi
 @Composable
@@ -304,13 +308,19 @@ class RemotePlaylistViewModel(private val c: AppContainer, val url: String) : Vi
 class StatsViewModel(private val c: AppContainer) : ViewModel() {
     val period = MutableStateFlow(StatsPeriod.WEEK)
 
+    /** Ticks at each local midnight, so "This week" moves on while the screen stays open. */
+    private val today = flow {
+        while (true) {
+            val now = ZonedDateTime.now()
+            emit(now.toLocalDate())
+            delay(Duration.between(now, now.toLocalDate().plusDays(1).atStartOfDay(now.zone)).toMillis() + 1_000)
+        }
+    }.distinctUntilChanged()
+
     /** Null until the first read finishes, so new users don't see the empty state flash. */
     @OptIn(ExperimentalCoroutinesApi::class)
-    val stats: StateFlow<ListeningStats?> = period.flatMapLatest { p ->
+    val stats: StateFlow<ListeningStats?> = kotlinx.coroutines.flow.combine(period, today, ::Pair).flatMapLatest { (p, _) ->
         val zone = ZoneId.systemDefault()
-        val from = p.start(Instant.now(), zone)
-        kotlinx.coroutines.flow.combine(c.library.trackPlays(from), c.library.playTimes(from)) { tracks, times ->
-            ListeningStats.of(tracks, times, zone)
-        }
+        c.library.listeningStats(p.start(Instant.now(), zone), zone)
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 }
