@@ -68,6 +68,13 @@ class PlaybackSpeedTest {
     }
 
     @Test
+    fun aPlayerRoundingTheSpeedStillCountsAsTheSavedOne() {
+        // Otherwise the service would keep re-applying the setting to a player that rounds it.
+        assertTrue(PlaybackSpeed.same(1.5f, 1.5001f))
+        assertTrue(!PlaybackSpeed.same(1.5f, 1f))
+    }
+
+    @Test
     fun labels() {
         assertEquals("1x", PlaybackSpeed.label(1f))
         assertEquals("1.5x", PlaybackSpeed.label(1.5f))

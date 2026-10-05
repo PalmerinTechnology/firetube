@@ -58,6 +58,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.DateFormat
 import java.util.Date
+import kotlin.math.roundToInt
 
 @UnstableApi
 @OptIn(ExperimentalMaterial3Api::class)
@@ -132,7 +133,7 @@ fun SettingsScreen(container: AppContainer, onBack: () -> Unit, onShowMessage: (
             }
             if (AudioEffects.bassBoostSupported) {
                 item {
-                    SliderRow("Bass boost", if (settings.bassBoost == 0) "Off" else "${settings.bassBoost}%", settings.bassBoost, 0..100, step = 10) {
+                    SliderRow("Bass boost", { if (it == 0) "Off" else "$it%" }, settings.bassBoost, 0..100, step = 10) {
                         scope.launch { s.setBassBoost(it) }
                     }
                 }
@@ -316,17 +317,17 @@ private fun SwitchRow(title: String, subtitle: String, checked: Boolean, onChang
     }
 }
 
-/** A slider that saves once it's let go (not on every step of the drag). */
+/** A slider that shows its value live but saves once it's let go (not on every step of the drag). */
 @Composable
-private fun SliderRow(title: String, subtitle: String, value: Int, range: IntRange, step: Int, onChange: (Int) -> Unit) {
+private fun SliderRow(title: String, subtitle: (Int) -> String, value: Int, range: IntRange, step: Int, onChange: (Int) -> Unit) {
     var dragging by remember(value) { mutableFloatStateOf(value.toFloat()) }
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
         Text(title, style = MaterialTheme.typography.bodyLarge)
-        Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(subtitle(dragging.roundToInt()), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Slider(
             value = dragging,
             onValueChange = { dragging = it },
-            onValueChangeFinished = { if (dragging.toInt() != value) onChange(dragging.toInt()) },
+            onValueChangeFinished = { if (dragging.roundToInt() != value) onChange(dragging.roundToInt()) },
             valueRange = range.first.toFloat()..range.last.toFloat(),
             steps = (range.last - range.first) / step - 1,
         )

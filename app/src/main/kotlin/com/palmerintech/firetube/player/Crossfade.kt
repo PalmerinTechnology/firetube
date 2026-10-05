@@ -40,7 +40,7 @@ class Crossfade {
 
     private var segments: List<LongRange> = emptyList()
 
-    /** A new song: [automatic] when the previous one simply ended (not a skip, pick or error). */
+    /** A new song: [automatic] when the previous one simply ended or looped (not a skip, pick or error). */
     fun onItemTransition(automatic: Boolean) {
         fadeInFrom = if (automatic && fadingOut && lengthMs > 0) 0 else NONE
         fadingOut = false
@@ -59,12 +59,12 @@ class Crossfade {
         segmentSkipPending = true
     }
 
-    /** The position jumped to [positionMs] by a seek (the user's, or SponsorBlock's — see [onSegmentSkip]). */
-    fun onSeek(positionMs: Long, durationMs: Long, speed: Float) {
+    /** The position jumped from [fromMs] to [positionMs] by a seek (the user's, or SponsorBlock's — see [onSegmentSkip]). */
+    fun onSeek(fromMs: Long, positionMs: Long, durationMs: Long, speed: Float) {
         if (segmentSkipPending) {
             segmentSkipPending = false
-            // An intro skipped while fading in: carry on fading in from the new spot.
-            if (fadeInFrom != NONE) fadeInFrom = positionMs
+            // An intro skipped while fading in: carry on from the same volume at the new spot.
+            if (fadeInFrom != NONE) fadeInFrom += positionMs - fromMs
             return
         }
         fadeInFrom = NONE
@@ -135,6 +135,9 @@ object PlaybackSpeed {
     /** Into range, rounded to 0.05 (the slider's step), so stored values stay tidy. */
     fun clamp(speed: Float): Float =
         if (speed.isNaN()) 1f else (Math.round(speed.coerceIn(MIN, MAX) * 20) / 20f)
+
+    /** Equal as far as the speed choices go (players may round). */
+    fun same(a: Float, b: Float): Boolean = kotlin.math.abs(a - b) < 0.01f
 
     fun label(speed: Float): String = "${clamp(speed).toString().removeSuffix(".0")}x"
 }

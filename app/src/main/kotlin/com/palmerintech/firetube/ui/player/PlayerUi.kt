@@ -55,6 +55,7 @@ import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.BedtimeOff
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Favorite
@@ -71,6 +72,8 @@ import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -377,7 +380,13 @@ fun NowPlayingScreen(
                     IconButton(onClick = onClose) { Icon(Icons.Default.KeyboardArrowDown, "Close player") }
                     Text("Now playing", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                     TextButton(onClick = { showSpeed = true }, modifier = Modifier.semantics { contentDescription = "Playback speed ${PlaybackSpeed.label(state.speed)}" }) {
-                        Text(PlaybackSpeed.label(state.speed), color = if (state.speed == 1f) LocalContentColor.current else MaterialTheme.colorScheme.primary)
+                        // Plain at 1x; highlighted only when the speed is changed.
+                        val normal = PlaybackSpeed.same(state.speed, 1f)
+                        Text(
+                            PlaybackSpeed.label(state.speed),
+                            color = if (normal) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary,
+                            fontWeight = if (normal) FontWeight.Normal else FontWeight.Bold,
+                        )
                     }
                     CastButton(container.castAvailable)
                     IconButton(onClick = { menu.open(track) }) { Icon(Icons.Default.MoreVert, "More") }
@@ -572,11 +581,20 @@ private fun SpeedSheet(speed: Float, onSpeed: (Float) -> Unit, onDismiss: () -> 
         Column(Modifier.navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp)) {
             Text("Playback speed", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             // Scrolls sideways on narrow screens rather than squashing the choices.
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 8.dp)) {
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 PlaybackSpeed.choices.forEach { v ->
-                    TextButton(onClick = { onSpeed(v); onDismiss() }) {
-                        Text(PlaybackSpeed.label(v), color = if (v == speed) MaterialTheme.colorScheme.primary else LocalContentColor.current)
-                    }
+                    val selected = PlaybackSpeed.same(v, speed)
+                    FilterChip(
+                        selected = selected,
+                        onClick = { onSpeed(v); onDismiss() },
+                        label = { Text(PlaybackSpeed.label(v)) },
+                        leadingIcon = if (selected) {
+                            { Icon(Icons.Default.Check, null, Modifier.size(FilterChipDefaults.IconSize)) }
+                        } else null,
+                    )
                 }
             }
             Text("Custom: ${PlaybackSpeed.label(custom)}")

@@ -83,7 +83,7 @@ class CrossfadeTest {
     @Test
     fun seekingIntoTheFadeOutPlaysItAtFullVolume() {
         val c = crossfade()
-        c.onSeek(song - 2_000, song, 1f)
+        c.onSeek(60_000, song - 2_000, song, 1f)
         assertEquals(1f, c.at(song - 2_000), 0f)
         assertEquals(1f, c.at(song - 100), 0f)
         c.onItemTransition(automatic = true)
@@ -93,8 +93,8 @@ class CrossfadeTest {
     @Test
     fun seekingBackOutOfTheFadeOutRearmsIt() {
         val c = crossfade()
-        c.onSeek(song - 2_000, song, 1f)
-        c.onSeek(60_000, song, 1f)
+        c.onSeek(60_000, song - 2_000, song, 1f)
+        c.onSeek(song - 2_000, 60_000, song, 1f)
         assertTrue(c.at(song - 1_000) < 1f)
     }
 
@@ -102,7 +102,7 @@ class CrossfadeTest {
     fun seekingDuringTheFadeInJumpsToFullVolume() {
         val c = crossfade()
         c.endNaturally()
-        c.onSeek(1_000, song, 1f)
+        c.onSeek(500, 1_000, song, 1f)
         assertEquals(1f, c.at(1_000), 0f)
     }
 
@@ -112,9 +112,11 @@ class CrossfadeTest {
         c.endNaturally()
         c.at(500)
         c.onSegmentSkip()
-        c.onSeek(15_000, song, 1f)
-        assertEquals(0f, c.at(15_000), 0.001f)
-        assertEquals(0.25f, c.at(16_500), 0.001f)
+        c.onSeek(500, 15_000, song, 1f)
+        // Same volume as just before the skip (not back to silence), then on up.
+        assertEquals(Crossfade.ramp(500 / 3_000f), c.at(15_000), 0.001f)
+        assertEquals(0.25f, c.at(16_000), 0.001f)
+        assertEquals(1f, c.at(17_500), 0f)
     }
 
     @Test
@@ -127,7 +129,7 @@ class CrossfadeTest {
         assertEquals(0f, c.at(185_200), 0.001f)
         // The outro's skip isn't the user's seek: the next song still fades in.
         c.onSegmentSkip()
-        c.onSeek(199_500, song, 1f)
+        c.onSeek(185_500, 199_500, song, 1f)
         assertEquals(0f, c.at(199_500), 0.001f)
         c.onItemTransition(automatic = true)
         assertEquals(0f, c.at(0), 0.001f)
@@ -138,6 +140,16 @@ class CrossfadeTest {
         val c = crossfade()
         c.setSegments(listOf(100_000L..120_000L))
         assertEquals(song, c.musicEndMs(song))
+    }
+
+    @Test
+    fun aLoopingOneSongQueueFadesBackIn() {
+        // Repeat-all with one song: the service reports the loop as automatic too.
+        val c = crossfade()
+        assertEquals(0f, c.at(song), 0.001f)
+        c.onItemTransition(automatic = true)
+        assertEquals(0f, c.at(0), 0.001f)
+        assertEquals(1f, c.at(3_000), 0f)
     }
 
     @Test

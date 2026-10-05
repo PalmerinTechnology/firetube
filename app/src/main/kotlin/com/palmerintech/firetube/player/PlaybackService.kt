@@ -60,6 +60,9 @@ class PlaybackService : MediaLibraryService() {
     private val leveler = VolumeLeveler()
     private val effects = AudioEffects(leveler)
     private val crossfade = Crossfade()
+
+    /** The saved playback speed: the source of truth for whichever player is active (phone or Chromecast). */
+    private var speedSetting = 1f
     private var crossfadeJob: Job? = null
     private var skipJob: Job? = null
     private var extendJob: Job? = null
@@ -106,7 +109,7 @@ class PlaybackService : MediaLibraryService() {
             exoPlayer
         }
         player.addListener(listener)
-        // Effects, fades and speed are the phone's own audio, so they follow the ExoPlayer directly.
+        // Effects and fades are the phone's own audio, so they follow the ExoPlayer directly.
         exoPlayer.addListener(audioListener)
         effects.attach(exoPlayer.audioSessionId)
 
@@ -128,8 +131,8 @@ class PlaybackService : MediaLibraryService() {
                 effects.update(it.equalizerPreset, it.bassBoost)
                 crossfade.lengthMs = it.crossfadeSeconds * 1000L
                 applyCrossfade()
-                val speed = PlaybackSpeed.clamp(it.playbackSpeed)
-                if (exoPlayer.playbackParameters.speed != speed) exoPlayer.playbackParameters = PlaybackParameters(speed)
+                speedSetting = PlaybackSpeed.clamp(it.playbackSpeed)
+                applySpeed()
             }
         }
         // "End of song": let the phone's player pause itself exactly at the end of the current item.
@@ -182,12 +185,18 @@ class PlaybackService : MediaLibraryService() {
         }
 
         override fun onDeviceInfoChanged(deviceInfo: androidx.media3.common.DeviceInfo) {
+            // Cast hand-off copies the other player's speed across; put the saved one back.
+            applySpeed()
             // Back on the phone: the cast proxy (and its wake/Wi-Fi locks) is no longer needed.
             when (deviceInfo.playbackType) {
                 androidx.media3.common.DeviceInfo.PLAYBACK_TYPE_LOCAL -> container.castServer.stop()
                 // Casting a paused queue shouldn't hold the wake/Wi-Fi locks until the next play.
                 else -> container.castServer.setStreaming(player.isPlaying)
             }
+        }
+
+        override fun onPlaybackParametersChanged(playbackParameters: PlaybackParameters) {
+            if (!PlaybackSpeed.same(playbackParameters.speed, speedSetting)) applySpeed()
         }
 
         override fun onPlaybackStateChanged(state: Int) {
@@ -238,13 +247,16 @@ class PlaybackService : MediaLibraryService() {
         override fun onAudioSessionIdChanged(audioSessionId: Int) = effects.attach(audioSessionId)
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-            crossfade.onItemTransition(automatic = reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO)
+            // REPEAT: a one-song queue on repeat-all looping (repeat-one never fades out).
+            crossfade.onItemTransition(
+                automatic = reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO || reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT,
+            )
             applyCrossfade()
         }
 
         override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
             if (reason != Player.DISCONTINUITY_REASON_SEEK || oldPosition.mediaItemIndex != newPosition.mediaItemIndex) return
-            crossfade.onSeek(newPosition.positionMs, exoPlayer.duration, exoPlayer.playbackParameters.speed)
+            crossfade.onSeek(oldPosition.positionMs, newPosition.positionMs, exoPlayer.duration, exoPlayer.playbackParameters.speed)
             applyCrossfade()
         }
 
@@ -277,6 +289,12 @@ class PlaybackService : MediaLibraryService() {
                 delay(if (update()) FADE_TICK_MS else IDLE_TICK_MS)
             }
         }
+    }
+
+    /** Puts the saved speed on the active player (pitch kept). A player that can't take it is left as it is. */
+    private fun applySpeed() {
+        if (!player.isCommandAvailable(Player.COMMAND_SET_SPEED_AND_PITCH)) return
+        if (!PlaybackSpeed.same(player.playbackParameters.speed, speedSetting)) player.setPlaybackSpeed(speedSetting)
     }
 
     private fun isCasting() = player.deviceInfo.playbackType == androidx.media3.common.DeviceInfo.PLAYBACK_TYPE_REMOTE
