@@ -21,6 +21,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -28,6 +29,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -44,15 +46,19 @@ import com.palmerintech.firetube.BuildConfig
 import com.palmerintech.firetube.Support
 import com.palmerintech.firetube.ui.components.openUrl
 import com.palmerintech.firetube.data.AudioQuality
+import com.palmerintech.firetube.data.EqualizerPreset
 import com.palmerintech.firetube.data.ThemeMode
 import com.palmerintech.firetube.data.UserSettings
 import com.palmerintech.firetube.data.sync.CloudSync
+import com.palmerintech.firetube.player.AudioEffects
+import com.palmerintech.firetube.player.Crossfade
 import com.palmerintech.firetube.update.UpdateInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.DateFormat
 import java.util.Date
+import kotlin.math.roundToInt
 
 @UnstableApi
 @OptIn(ExperimentalMaterial3Api::class)
@@ -67,6 +73,8 @@ fun SettingsScreen(container: AppContainer, onBack: () -> Unit, onShowMessage: (
 
     var cacheDialog by remember { mutableStateOf(false) }
     var themeDialog by remember { mutableStateOf(false) }
+    var equalizerDialog by remember { mutableStateOf(false) }
+    var crossfadeDialog by remember { mutableStateOf(false) }
     var update by remember { mutableStateOf<UpdateInfo?>(null) }
     var checking by remember { mutableStateOf(false) }
     var installProgress by remember { mutableStateOf<Float?>(null) }
@@ -115,6 +123,24 @@ fun SettingsScreen(container: AppContainer, onBack: () -> Unit, onShowMessage: (
             item {
                 SwitchRow("Data saver", "Stream lower-bitrate audio", settings.audioQuality == AudioQuality.DATA_SAVER) {
                     scope.launch { container.setAudioQuality(if (it) AudioQuality.DATA_SAVER else AudioQuality.HIGH) }
+                }
+            }
+
+            item { Group("Audio") }
+            // Hidden on devices without the effect.
+            if (AudioEffects.equalizerSupported) {
+                item { ClickRow("Equalizer", settings.equalizerPreset.label()) { equalizerDialog = true } }
+            }
+            if (AudioEffects.bassBoostSupported) {
+                item {
+                    SliderRow("Bass boost", { if (it == 0) "Off" else "$it%" }, settings.bassBoost, 0..100, step = 10) {
+                        scope.launch { s.setBassBoost(it) }
+                    }
+                }
+            }
+            item {
+                ClickRow("Crossfade", settings.crossfadeSeconds.let { if (it == 0) "Off — songs play back to back" else "Fades between songs over $it s" }) {
+                    crossfadeDialog = true
                 }
             }
 
@@ -217,6 +243,17 @@ fun SettingsScreen(container: AppContainer, onBack: () -> Unit, onShowMessage: (
             scope.launch { s.setThemeMode(it) }; themeDialog = false
         }
     }
+    if (equalizerDialog) {
+        ChoiceDialog("Equalizer", EqualizerPreset.entries, settings.equalizerPreset, { it.label() }, onDismiss = { equalizerDialog = false }) {
+            scope.launch { s.setEqualizerPreset(it) }; equalizerDialog = false
+        }
+    }
+    if (crossfadeDialog) {
+        val options = (0..Crossfade.MAX_SECONDS step 2).toList()
+        ChoiceDialog("Crossfade", options, settings.crossfadeSeconds, { if (it == 0) "Off" else "$it seconds" }, onDismiss = { crossfadeDialog = false }) {
+            scope.launch { s.setCrossfadeSeconds(it) }; crossfadeDialog = false
+        }
+    }
     if (cacheDialog) {
         ChoiceDialog("Song cache", listOf(256, 512, 1024, 2048, 4096), settings.cacheSizeMb, { "$it MB" }, onDismiss = { cacheDialog = false }) {
             scope.launch { s.setCacheSizeMb(it) }; cacheDialog = false
@@ -280,6 +317,23 @@ private fun SwitchRow(title: String, subtitle: String, checked: Boolean, onChang
     }
 }
 
+/** A slider that shows its value live but saves once it's let go (not on every step of the drag). */
+@Composable
+private fun SliderRow(title: String, subtitle: (Int) -> String, value: Int, range: IntRange, step: Int, onChange: (Int) -> Unit) {
+    var dragging by remember(value) { mutableFloatStateOf(value.toFloat()) }
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Text(title, style = MaterialTheme.typography.bodyLarge)
+        Text(subtitle(dragging.roundToInt()), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Slider(
+            value = dragging,
+            onValueChange = { dragging = it },
+            onValueChangeFinished = { if (dragging.roundToInt() != value) onChange(dragging.roundToInt()) },
+            valueRange = range.first.toFloat()..range.last.toFloat(),
+            steps = (range.last - range.first) / step - 1,
+        )
+    }
+}
+
 @Composable
 private fun <T> ChoiceDialog(title: String, options: List<T>, selected: T, label: (T) -> String, onDismiss: () -> Unit, onSelect: (T) -> Unit) {
     AlertDialog(
@@ -304,6 +358,16 @@ private fun ThemeMode.label() = when (this) {
     ThemeMode.SYSTEM -> "System default"
     ThemeMode.LIGHT -> "Light"
     ThemeMode.DARK -> "Dark"
+}
+
+private fun EqualizerPreset.label() = when (this) {
+    EqualizerPreset.FLAT -> "Off (flat)"
+    EqualizerPreset.BASS -> "Bass boost"
+    EqualizerPreset.TREBLE -> "Treble boost"
+    EqualizerPreset.VOCAL -> "Vocal"
+    EqualizerPreset.ROCK -> "Rock"
+    EqualizerPreset.POP -> "Pop"
+    EqualizerPreset.CLASSICAL -> "Classical"
 }
 
 private fun CloudSync.Status.label() = when (this) {

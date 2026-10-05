@@ -21,6 +21,7 @@ import com.palmerintech.firetube.player.MediaStack
 import com.palmerintech.firetube.player.PlayerConnection
 import com.palmerintech.firetube.player.QueueStore
 import com.palmerintech.firetube.player.SleepTimer
+import com.palmerintech.firetube.player.SpeedGuard
 import com.palmerintech.firetube.player.SponsorBlock
 import com.palmerintech.firetube.player.StreamResolver
 import com.palmerintech.firetube.player.cast.CastProxyServer
@@ -64,6 +65,7 @@ class AppContainer(val app: Application) {
     val sponsorBlock by lazy { SponsorBlock(httpClient) }
     val lyrics by lazy { Lyrics(httpClient, "FireTube/${BuildConfig.VERSION_NAME} (https://github.com/PalmerinTechnology/firetube)") }
     val sleepTimer = SleepTimer(appScope)
+    val speedGuard = SpeedGuard()
     val queueStore = QueueStore(app)
     val player = PlayerConnection(app, MainScope())
 

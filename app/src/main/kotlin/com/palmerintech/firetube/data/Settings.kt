@@ -5,10 +5,13 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.palmerintech.firetube.player.Crossfade
+import com.palmerintech.firetube.player.PlaybackSpeed
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -19,6 +22,9 @@ enum class AudioQuality { HIGH, DATA_SAVER }
 
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
+/** Equalizer curves; the band levels are in [com.palmerintech.firetube.player.AudioEffects]. */
+enum class EqualizerPreset { FLAT, BASS, TREBLE, VOCAL, ROCK, POP, CLASSICAL }
+
 data class UserSettings(
     /** Keep playing related songs when the queue runs out. */
     val autoplay: Boolean = true,
@@ -27,6 +33,13 @@ data class UserSettings(
     val sponsorBlock: Boolean = true,
     /** Even out loudness between songs. */
     val volumeLeveling: Boolean = true,
+    val equalizerPreset: EqualizerPreset = EqualizerPreset.FLAT,
+    /** Bass boost strength, 0–100 %. */
+    val bassBoost: Int = 0,
+    /** Fade between songs over this many seconds (0 = off, gapless). */
+    val crossfadeSeconds: Int = 0,
+    /** Playback speed (pitch is kept); see [PlaybackSpeed]. */
+    val playbackSpeed: Float = 1f,
     /** Send crash reports (Firebase Crashlytics) in builds that include Firebase. */
     val crashReports: Boolean = true,
     val cacheSizeMb: Int = 512,
@@ -44,6 +57,10 @@ class SettingsRepository(private val context: Context) {
         val audioQuality = stringPreferencesKey("audio_quality")
         val sponsorBlock = booleanPreferencesKey("sponsor_block")
         val volumeLeveling = booleanPreferencesKey("volume_leveling")
+        val equalizerPreset = stringPreferencesKey("equalizer_preset")
+        val bassBoost = intPreferencesKey("bass_boost")
+        val crossfadeSeconds = intPreferencesKey("crossfade_seconds")
+        val playbackSpeed = floatPreferencesKey("playback_speed")
         val crashReports = booleanPreferencesKey("crash_reports")
         val cacheSizeMb = intPreferencesKey("cache_size_mb")
         val themeMode = stringPreferencesKey("theme_mode")
@@ -59,6 +76,10 @@ class SettingsRepository(private val context: Context) {
             audioQuality = p[Keys.audioQuality]?.let { runCatching { AudioQuality.valueOf(it) }.getOrNull() } ?: defaults.audioQuality,
             sponsorBlock = p[Keys.sponsorBlock] ?: defaults.sponsorBlock,
             volumeLeveling = p[Keys.volumeLeveling] ?: defaults.volumeLeveling,
+            equalizerPreset = p[Keys.equalizerPreset]?.let { runCatching { EqualizerPreset.valueOf(it) }.getOrNull() } ?: defaults.equalizerPreset,
+            bassBoost = p[Keys.bassBoost] ?: defaults.bassBoost,
+            crossfadeSeconds = p[Keys.crossfadeSeconds] ?: defaults.crossfadeSeconds,
+            playbackSpeed = p[Keys.playbackSpeed]?.let(PlaybackSpeed::clamp) ?: defaults.playbackSpeed,
             crashReports = p[Keys.crashReports] ?: defaults.crashReports,
             cacheSizeMb = p[Keys.cacheSizeMb] ?: defaults.cacheSizeMb,
             themeMode = p[Keys.themeMode]?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() } ?: defaults.themeMode,
@@ -82,6 +103,10 @@ class SettingsRepository(private val context: Context) {
             ?: UserSettings().audioQuality
     suspend fun setSponsorBlock(value: Boolean) = context.dataStore.edit { it[Keys.sponsorBlock] = value }
     suspend fun setVolumeLeveling(value: Boolean) = context.dataStore.edit { it[Keys.volumeLeveling] = value }
+    suspend fun setEqualizerPreset(value: EqualizerPreset) = context.dataStore.edit { it[Keys.equalizerPreset] = value.name }
+    suspend fun setBassBoost(value: Int) = context.dataStore.edit { it[Keys.bassBoost] = value.coerceIn(0, 100) }
+    suspend fun setCrossfadeSeconds(value: Int) = context.dataStore.edit { it[Keys.crossfadeSeconds] = value.coerceIn(0, Crossfade.MAX_SECONDS) }
+    suspend fun setPlaybackSpeed(value: Float) = context.dataStore.edit { it[Keys.playbackSpeed] = PlaybackSpeed.clamp(value) }
     suspend fun setCrashReports(value: Boolean) = context.dataStore.edit { it[Keys.crashReports] = value }
     suspend fun setCacheSizeMb(value: Int) {
         context.dataStore.edit { it[Keys.cacheSizeMb] = value }
