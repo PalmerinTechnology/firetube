@@ -27,7 +27,7 @@ crash details, no personal data), which you can turn off in Settings.
 
 ## Install
 
-Download the latest APK from **[Releases](https://github.com/PalmerinTechnology/firetube/releases)**.
+Download the latest APK from **[Releases](https://github.com/PalmerinTek/firetube/releases)**.
 FireTube updates itself, and it also works with [Obtainium](https://github.com/ImranR98/Obtainium).
 
 FireTube isn't on Google Play: Play doesn't allow apps that play YouTube in the background.

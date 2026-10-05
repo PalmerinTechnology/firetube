@@ -6,7 +6,7 @@ title: FireTube privacy policy
 
 _Last updated: October 4, 2026_
 
-FireTube is a free, open-source music player with no ads. This policy explains what data the official builds (from [GitHub Releases](https://github.com/PalmerinTechnology/firetube/releases)) handle.
+FireTube is a free, open-source music player with no ads. This policy explains what data the official builds (from [GitHub Releases](https://github.com/PalmerinTek/firetube/releases)) handle.
 
 ## Data on your device
 
@@ -45,4 +45,4 @@ Changes to this policy are posted on this page.
 
 ## Contact
 
-Stephen Palmerin: open an issue at [github.com/PalmerinTechnology/firetube/issues](https://github.com/PalmerinTechnology/firetube/issues).
+Stephen Palmerin: open an issue at [github.com/PalmerinTek/firetube/issues](https://github.com/PalmerinTek/firetube/issues).

@@ -63,7 +63,7 @@ class AppContainer(val app: Application) {
     }
     val downloads by lazy { Downloads(app, mediaStack) }
     val sponsorBlock by lazy { SponsorBlock(httpClient) }
-    val lyrics by lazy { Lyrics(httpClient, "FireTube/${BuildConfig.VERSION_NAME} (https://github.com/PalmerinTechnology/firetube)") }
+    val lyrics by lazy { Lyrics(httpClient, "FireTube/${BuildConfig.VERSION_NAME} (https://github.com/PalmerinTek/firetube)") }
     val sleepTimer = SleepTimer(appScope)
     val speedGuard = SpeedGuard()
     val queueStore = QueueStore(app)
