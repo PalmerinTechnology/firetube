@@ -16,13 +16,16 @@ object Chapters {
     /** At least this many description timestamps, so a lone "at 2:30 she says..." isn't a track list. */
     private const val MIN_FROM_DESCRIPTION = 3
 
-    /** NewPipe's segments as chapters; empty unless there are at least two, which is all a chapter list needs. */
+    /**
+     * NewPipe's segments as chapters; empty unless there are at least two, which is all a chapter
+     * list needs. An untitled one keeps an empty title, for the app to name in the user's language.
+     */
     internal fun fromSegments(segments: List<StreamSegment>, durationSeconds: Long = 0): List<Chapter> {
         val chapters = segments
             .filter { it.startTimeSeconds >= 0 && (durationSeconds <= 0 || it.startTimeSeconds < durationSeconds) }
             .sortedBy { it.startTimeSeconds }
             .distinctBy { it.startTimeSeconds }
-            .mapIndexed { i, s -> Chapter(s.title?.trim().orEmpty().ifEmpty { "Chapter ${i + 1}" }, s.startTimeSeconds * 1000L) }
+            .map { Chapter(it.title?.trim().orEmpty(), it.startTimeSeconds * 1000L) }
         return chapters.takeIf { it.size >= 2 }.orEmpty()
     }
 

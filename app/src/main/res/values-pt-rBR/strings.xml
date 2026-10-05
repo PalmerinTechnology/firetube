@@ -26,6 +26,11 @@
         <item quantity="many">%1$d reproduções</item>
         <item quantity="other">%1$d reproduções</item>
     </plurals>
+    <plurals name="artist_and_others">
+        <item quantity="one">%1$s e mais %2$d</item>
+        <item quantity="many">%1$s e mais %2$d</item>
+        <item quantity="other">%1$s e mais %2$d</item>
+    </plurals>
     <string name="duration_hours_minutes">%1$d h %2$d min</string>
     <string name="duration_minutes">%1$d min</string>
     <plurals name="duration_seconds">
@@ -172,6 +177,7 @@
     <string name="chapter_position_description">Capítulo %1$d de %2$d: %3$s</string>
     <string name="chapter_previous">Capítulo anterior</string>
     <string name="chapter_next">Próximo capítulo</string>
+    <string name="chapter_untitled">Capítulo %1$d</string>
 
     <!-- Queue -->
     <string name="queue_title">A seguir</string>

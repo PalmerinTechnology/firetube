@@ -224,6 +224,46 @@ class TitleCleanerTest {
     }
 
     @Test
+    fun `label channels take the artist from a quoted title`() {
+        assertEquals(
+            listOf(LyricsQuery("BTS", "Dynamite")),
+            TitleCleaner.queries("BTS (방탄소년단) 'Dynamite' Official MV", "HYBE LABELS"),
+        )
+        assertEquals(LyricsQuery("IU", "Palette"), first("아이유 (IU)「Palette」(Official Video)", "Kakao Entertainment"))
+        assertEquals(LyricsQuery("YOASOBI", "アイドル"), first("YOASOBI「アイドル」Official Music Video", "Sony Music Japan"))
+        assertEquals(LyricsQuery("BLACKPINK", "How You Like That"), first("BLACKPINK - 'How You Like That' M/V", "BLACKPINK"))
+        assertEquals(LyricsQuery("Taylor Swift", "Anti-Hero"), first("Taylor Swift “Anti-Hero” (Official Music Video)", "Republic Records"))
+    }
+
+    @Test
+    fun `lyric channels try both sides of the dash, never their own name`() {
+        assertEquals(
+            listOf(LyricsQuery("Shawn Mendes", "Treat You Better"), LyricsQuery("Treat You Better", "Shawn Mendes")),
+            TitleCleaner.queries("Shawn Mendes - Treat You Better (Lyrics)", "7clouds"),
+        )
+        assertEquals(LyricsQuery("Rema", "Calm Down"), first("Rema - Calm Down (Lyrics)", "Vibe Music"))
+        // "Song - Artist | Lyrics": the second variant has it the right way round.
+        assertEquals(
+            LyricsQuery("Billie Eilish", "Birds of a Feather"),
+            TitleCleaner.queries("Birds of a Feather - Billie Eilish | Lyrics", "Dan Music Lyrics")[1],
+        )
+        assertEquals(LyricsQuery("BTS", "Butter"), first("BTS (방탄소년단) - Butter", "HYBE LABELS"))
+    }
+
+    @Test
+    fun `quotes and parentheses that aren't a song or a second script stay`() {
+        // Not quoting the song: an apostrophe in a name, or more title after the quote.
+        assertEquals(LyricsQuery("Guns N' Roses", "Sweet Child O' Mine"), first("Guns N' Roses - Sweet Child O' Mine (Official Music Video)", "GunsNRosesVEVO"))
+        assertEquals(LyricsQuery("Oasis", "Rock 'n' Roll Star"), first("Rock 'n' Roll Star", "Oasis"))
+        // A dash before the quote: the dash split wins.
+        assertEquals("Queen", first("Queen - Song \"Live\"", "Queen").artist)
+        // Two Latin names: not a transliteration.
+        assertEquals(LyricsQuery("Prince (The Artist)", "Song"), first("Prince (The Artist) - Song", "Some Uploader"))
+        // A Topic upload is just the song name.
+        assertEquals(listOf(LyricsQuery("Oasis", "Don't Look Back 'In' Anger")), TitleCleaner.queries("Don't Look Back 'In' Anger", "Oasis - Topic"))
+    }
+
+    @Test
     fun `never offers a query with a blank side`() {
         assertEquals(emptyList<LyricsQuery>(), TitleCleaner.queries("(Official Video)", ""))
         assertEquals(listOf(LyricsQuery("Band", "Song")), TitleCleaner.queries("Band - Song", ""))

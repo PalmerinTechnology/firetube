@@ -124,6 +124,8 @@ import com.palmerintech.firetube.extractor.Chapters
 import com.palmerintech.firetube.player.PlaybackSpeed
 import com.palmerintech.firetube.player.PlayerUiState
 import com.palmerintech.firetube.player.SleepTimer
+import com.palmerintech.firetube.ui.artistLabel
+import com.palmerintech.firetube.ui.chapterTitle
 import com.palmerintech.firetube.ui.components.AddToPlaylistDialog
 import com.palmerintech.firetube.ui.components.Artwork
 import com.palmerintech.firetube.ui.components.focusRing
@@ -262,7 +264,7 @@ private fun MiniPlayerCard(
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text(track.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(track.artist, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(artistLabel(track), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 PlayPauseButton(state, onTogglePlay, small = true)
                 IconButton(onClick = onNext) { Icon(Icons.Default.SkipNext, stringResource(R.string.player_next)) }
@@ -428,7 +430,7 @@ fun NowPlayingScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text(track.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.basicMarquee())
-                            Text(track.artist, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                            Text(artistLabel(track), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                             if (chapters.isNotEmpty()) CurrentChapter(chapters, shown, player::seekTo) { showChapters = true }
                         }
                         IconButton(onClick = { scope.launch { container.library.toggleFavorite(track) } }) {
@@ -550,7 +552,7 @@ private const val CONTROLS_FROM = 0.25f
 private fun CurrentChapter(chapters: List<Chapter>, positionMs: Long, onSeek: (Long) -> Unit, onOpen: () -> Unit) {
     val index = Chapters.indexAt(chapters, positionMs)
     val chaptersLabel = stringResource(R.string.chapters_title)
-    val title = chapters.getOrNull(index)?.title ?: chaptersLabel
+    val title = chapters.getOrNull(index)?.let { chapterTitle(it, index) } ?: chaptersLabel
     val description = if (index >= 0) stringResource(R.string.chapter_position_description, index + 1, chapters.size, title) else chaptersLabel
     val previousLabel = stringResource(R.string.chapter_previous)
     val nextLabel = stringResource(R.string.chapter_next)

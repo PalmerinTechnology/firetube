@@ -195,6 +195,29 @@ class LyricsTest {
     }
 
     @Test
+    fun `label and lyric channel uploads are looked up by the artist in the title`() = runTest {
+        // LRCLIB only knows the song under its artist; any query by the channel finds nothing.
+        fun lrclib(song: String, artist: String) = lyrics { url ->
+            val byName = url.queryParameter("track_name") == song && url.queryParameter("artist_name") == artist
+            when {
+                url.encodedPath == "/api/get" && byName -> 200 to record(name = song, artist = artist)
+                url.encodedPath == "/api/search" && byName -> 200 to "[" + record(name = song, artist = artist) + "]"
+                else -> null
+            }
+        }
+        val synced = LyricsResult.Synced(listOf(LrcLine(1_000, "Hello"), LrcLine(2_000, "World")))
+        val dynamite = Track("dyn", "BTS (방탄소년단) 'Dynamite' Official MV", "HYBE LABELS", 200, null)
+        assertEquals(synced, lrclib("Dynamite", "BTS").lookup(dynamite))
+        val clouds = Track("7c", "Shawn Mendes - Treat You Better (Lyrics)", "7clouds", 200, null)
+        assertEquals(synced, lrclib("Treat You Better", "Shawn Mendes").lookup(clouds))
+        // "Song - Artist": found by the second variant's search.
+        val swapped = Track("sw", "Birds of a Feather - Billie Eilish | Lyrics", "Dan Music Lyrics", 200, null)
+        assertEquals(synced, lrclib("Birds of a Feather", "Billie Eilish").lookup(swapped))
+        // Still strict: the right song by the channel isn't taken.
+        assertEquals(LyricsResult.NotFound, lrclib("Dynamite", "HYBE LABELS").lookup(Track("d2", dynamite.title, dynamite.artist, 200, null)))
+    }
+
+    @Test
     fun `a bracketed version of a one-word song matches, by the same artist only`() = runTest {
         val umbrella = Track("umb", "Rihanna - Umbrella (Orange Version)", "RihannaVEVO", 260, null)
         val hit = lyrics { url ->
