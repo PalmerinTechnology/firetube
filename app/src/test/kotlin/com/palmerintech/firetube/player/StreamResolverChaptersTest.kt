@@ -14,9 +14,12 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 
 class StreamResolverChaptersTest {
+    @get:Rule val tmp = TemporaryFolder()
 
     private val mix = listOf(Chapter("Intro", 0), Chapter("Drop", 60_000), Chapter("Outro", 120_000))
 
@@ -76,5 +79,39 @@ class StreamResolverChaptersTest {
         assertTrue(resolver.chapters("t1").first().isEmpty())
         assertEquals(mix, resolver.chapters("t2").first())
         assertEquals(mix, resolver.chapters("t51").first())
+    }
+
+    @Test
+    fun aDownloadsChaptersComeBackWithoutAResolve() = runTest {
+        val store = ChapterStore(tmp.newFolder("chapters"))
+        val source = FakeSource(mutableSetOf("mix"), mix)
+        // Downloaded (and its chapters saved) in an earlier run of the app...
+        StreamResolver(source, store) { AudioQuality.HIGH }.run {
+            resolve("mix")
+            store.keepFor(setOf("mix"), this::knownChapters)
+        }
+        // ...then played from the download after a restart.
+        val resolver = StreamResolver(source, store) { AudioQuality.HIGH }
+        assertEquals(mix, resolver.chapters("mix").first())
+        assertEquals(mix, resolver.knownChapters("mix"))
+        assertEquals(1, source.resolves)
+        assertTrue(resolver.chapters("other").first().isEmpty())
+    }
+
+    @Test
+    fun aRemovedDownloadsChaptersAreGone() = runTest {
+        val store = ChapterStore(tmp.newFolder("chapters"))
+        store.save("mix", mix)
+        store.keepFor(emptySet()) { null }
+        assertTrue(StreamResolver(FakeSource(mutableSetOf(), mix), store) { AudioQuality.HIGH }.chapters("mix").first().isEmpty())
+    }
+
+    @Test
+    fun aResolveWinsOverStoredChapters() = runTest {
+        val store = ChapterStore(tmp.newFolder("chapters"))
+        store.save("mix", listOf(Chapter("Old", 0), Chapter("List", 1_000)))
+        val resolver = StreamResolver(FakeSource(mutableSetOf("mix"), mix), store) { AudioQuality.HIGH }
+        resolver.resolve("mix")
+        assertEquals(mix, resolver.chapters("mix").first())
     }
 }

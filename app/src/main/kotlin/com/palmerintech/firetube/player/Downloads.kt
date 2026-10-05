@@ -26,9 +26,17 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.util.concurrent.Executors
 
-/** Offline downloads, stored in [MediaStack.downloadCache] under the same keys playback uses. */
+/**
+ * Offline downloads, stored in [MediaStack.downloadCache] under the same keys playback uses.
+ * Their chapters are kept in [chapterStore], since playing a download doesn't resolve it.
+ */
 @UnstableApi
-class Downloads(private val context: Context, stack: MediaStack) {
+class Downloads(
+    private val context: Context,
+    stack: MediaStack,
+    private val resolver: StreamResolver,
+    private val chapterStore: ChapterStore,
+) {
 
     val manager = DownloadManager(
         context,
@@ -89,9 +97,11 @@ class Downloads(private val context: Context, stack: MediaStack) {
 
     private fun readIndex() {
         val out = mutableMapOf<String, DownloadInfo>()
+        val ids = mutableSetOf<String>()
         manager.downloadIndex.getDownloads().use { cursor ->
             while (cursor.moveToNext()) {
                 val d = cursor.download
+                ids += d.request.id
                 val track = runCatching {
                     json.decodeFromString(StoredTrack.serializer(), d.request.data.decodeToString()).toTrack()
                 }.getOrNull() ?: continue
@@ -99,6 +109,8 @@ class Downloads(private val context: Context, stack: MediaStack) {
             }
         }
         _state.value = out
+        // A download resolves its track, so its chapters are known by the time it changes state.
+        chapterStore.keepFor(ids, resolver::knownChapters)
     }
 
     data class DownloadInfo(val track: Track, val state: Int, val percent: Float) {
