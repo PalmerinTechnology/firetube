@@ -30,11 +30,15 @@ class ListenCounter(
 
     /**
      * A new item (or the same one repeating) became current. Returns the previous listen if it counts.
-     * [playlistChanged]: the queue was replaced. If the song is still the same one, as when playback
-     * moves to or from a Chromecast, it's the same listen and keeps counting.
+     * [queueReplacedAtMs]: the queue was replaced and playback is now at this position. Playback
+     * moving to or from a Chromecast does that with the same song, carrying on mid-song: it's the
+     * same listen and keeps counting. Picking the same song again from a list starts it from the
+     * top, which is a new play.
      */
-    fun onItem(next: Track?, isPlaying: Boolean, playlistChanged: Boolean = false): Listen? {
-        if (playlistChanged && next != null && next.id == track?.id) return onPlaying(isPlaying)
+    fun onItem(next: Track?, isPlaying: Boolean, queueReplacedAtMs: Long? = null): Listen? {
+        if (queueReplacedAtMs != null && queueReplacedAtMs >= HAND_OFF_MIN_POSITION_MS && next != null && next.id == track?.id) {
+            return onPlaying(isPlaying)
+        }
         val done = current()
         track = next
         startedAt = 0L
@@ -75,6 +79,9 @@ class ListenCounter(
         /** A play counts after 30 seconds, or half the song if it's shorter than a minute. */
         const val MIN_LISTEN_MS = 30_000L
 
+        /** A replaced queue that resumes the same song at least this far in is a hand-off, not a replay. */
+        const val HAND_OFF_MIN_POSITION_MS = 5_000L
+
         fun threshold(durationSeconds: Long): Long =
             if (durationSeconds > 0) minOf(MIN_LISTEN_MS, durationSeconds * 1000 / 2) else MIN_LISTEN_MS
 
@@ -90,8 +97,8 @@ class ListenTracker(private val player: Player, private val library: LibraryRepo
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-        val playlistChanged = reason == Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED
-        save(counter.onItem(mediaItem?.let(MediaItems::trackOf), player.isPlaying, playlistChanged))
+        val replacedAt = player.currentPosition.takeIf { reason == Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED }
+        save(counter.onItem(mediaItem?.let(MediaItems::trackOf), player.isPlaying, replacedAt))
     }
 
     override fun onIsPlayingChanged(isPlaying: Boolean) {

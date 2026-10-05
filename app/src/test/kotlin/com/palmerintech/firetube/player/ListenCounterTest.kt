@@ -69,8 +69,9 @@ class ListenCounterTest {
         counter.onItem(t, isPlaying = true)
         val startedAt = wall
         pass(40_000)
-        // Moving to a Chromecast replaces the queue with the same song; it may pause meanwhile.
-        assertEquals(40_000L, counter.onItem(t, isPlaying = false, playlistChanged = true)!!.msListened)
+        // Moving to a Chromecast replaces the queue with the same song, carrying on where it was;
+        // it may pause meanwhile.
+        assertEquals(40_000L, counter.onItem(t, isPlaying = false, queueReplacedAtMs = 40_500)!!.msListened)
         pass(3_000)
         counter.onPlaying(true)
         pass(20_000)
@@ -83,8 +84,34 @@ class ListenCounterTest {
     fun newQueueWithADifferentSongStartsANewListen() {
         counter.onItem(track("a"), isPlaying = true)
         pass(40_000)
-        assertEquals("a", counter.onItem(track("b"), isPlaying = true, playlistChanged = true)!!.track.id)
+        assertEquals("a", counter.onItem(track("b"), isPlaying = true, queueReplacedAtMs = 40_000)!!.track.id)
         assertEquals("b", counter.current()!!.track.id)
+    }
+
+    @Test
+    fun replayingTheSameSongFromAListIsANewPlay() {
+        val t = track("a")
+        counter.onItem(t, isPlaying = true)
+        pass(90_000)
+        // Tapped again in search / a playlist / Top songs: same id, but it starts from the top.
+        val first = counter.onItem(t, isPlaying = true, queueReplacedAtMs = 0)!!
+        assertEquals(90_000L, first.msListened)
+        pass(40_000)
+        val second = counter.onItem(null, isPlaying = false)!!
+        assertEquals(40_000L, second.msListened)
+        assertEquals(first.startedAt + 90_000, second.startedAt)
+    }
+
+    @Test
+    fun replayingAFinishedSongFromAListIsANewPlay() {
+        val t = track("a", seconds = 60)
+        counter.onItem(t, isPlaying = true)
+        pass(60_000)
+        counter.onPlaying(false) // ended
+        pass(5 * 60_000)
+        assertEquals(60_000L, counter.onItem(t, isPlaying = true, queueReplacedAtMs = 0)!!.msListened)
+        pass(1_000)
+        assertEquals(1_000L, counter.current()!!.msListened)
     }
 
     @Test
