@@ -119,7 +119,7 @@ class ChaptersTest {
         val chapters = Chapters.fromSegments(
             listOf(StreamSegment("Second", 300), StreamSegment(" First ", 0), StreamSegment("Dup", 300), StreamSegment("", 600)),
         )
-        assertEquals(listOf(Chapter("First", 0), Chapter("Second", 300_000), Chapter("Chapter 3", 600_000)), chapters)
+        assertEquals(listOf(Chapter("First", 0), Chapter("Second", 300_000), Chapter("", 600_000)), chapters)
     }
 
     @Test

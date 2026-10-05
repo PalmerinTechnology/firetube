@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.palmerintech.firetube.extractor.Chapter
 import com.palmerintech.firetube.extractor.Chapters
+import com.palmerintech.firetube.ui.chapterTitle
 import com.palmerintech.firetube.ui.components.focusRing
 import com.palmerintech.firetube.ui.components.formatDuration
 import kotlin.math.abs
@@ -96,7 +97,7 @@ internal fun ChaptersSheet(
                         )
                         Spacer(Modifier.width(12.dp))
                         Text(
-                            chapter.title, style = MaterialTheme.typography.bodyLarge, color = color,
+                            chapterTitle(chapter, index), style = MaterialTheme.typography.bodyLarge, color = color,
                             fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
                             maxLines = 2, overflow = TextOverflow.Ellipsis,
                         )

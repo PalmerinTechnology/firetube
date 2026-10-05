@@ -5,11 +5,33 @@ data class Track(
     /** Stable id — the YouTube video id. */
     val id: String,
     val title: String,
+    /** As YouTube credits it, and as stored; show [credit] instead, it may be "X and 2 more". */
     val artist: String,
     val durationSeconds: Long,
     val thumbnailUrl: String?,
 ) {
     val url: String get() = "https://www.youtube.com/watch?v=$id"
+
+    val credit: ArtistCredit get() = ArtistCredit.parse(artist)
+}
+
+/**
+ * Who a track is credited to: its [primary] artist and how many [others] (a collaboration of
+ * several channels). YouTube writes those as "Shakira and 2 more", in English since
+ * [NewPipeStreamSource] asks for English results; that string is kept as [Track.artist] (it's
+ * what has always been stored), and apps put the parts back together in the user's language.
+ */
+data class ArtistCredit(val primary: String, val others: Int = 0) {
+    companion object {
+        private val andMore = Regex("""^(.+?)\s+and\s+(\d{1,4})\s+more$""")
+
+        /** "Shakira and 2 more" → (Shakira, 2); any other name is all [primary]. */
+        fun parse(artist: String): ArtistCredit {
+            val m = andMore.matchEntire(artist.trim()) ?: return ArtistCredit(artist)
+            val others = m.groupValues[2].toInt()
+            return if (others > 0) ArtistCredit(m.groupValues[1], others) else ArtistCredit(artist)
+        }
+    }
 }
 
 data class PlaylistSummary(
@@ -49,7 +71,7 @@ data class ResolvedStream(
     val chapters: List<Chapter> = emptyList(),
 )
 
-/** A titled section of a track, starting [startMs] into it. */
+/** A titled section of a track, starting [startMs] into it. [title] may be empty (YouTube gave none). */
 data class Chapter(val title: String, val startMs: Long)
 
 class ExtractionException(message: String, cause: Throwable? = null) : Exception(message, cause) {
