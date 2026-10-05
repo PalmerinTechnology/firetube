@@ -19,6 +19,7 @@ crash details, no personal data), which you can turn off in Settings.
 - **Offline downloads**, and a song cache so replays don't use data.
 - **Even-out volume** between loud and quiet uploads.
 - **Skip non-music sections** such as intros and talking, using [SponsorBlock](https://sponsor.ajay.app).
+- **Synced lyrics** that follow the song (tap a line to jump there), from [LRCLIB](https://lrclib.net).
 - **Android Auto**, including voice search, and **Chromecast**.
 - **Android TV / Fire TV** and tablet layouts, with full D-pad support.
 - **Optional Google sign-in** to sync your library, or backup and restore to a file.
@@ -80,6 +81,7 @@ Issues and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 FireTube is licensed under the [GNU GPL v3](LICENSE). It builds on
 [NewPipeExtractor](https://github.com/TeamNewPipe/NewPipeExtractor) (GPLv3),
-[Media3](https://developer.android.com/media/media3) and [SponsorBlock](https://sponsor.ajay.app).
+[Media3](https://developer.android.com/media/media3), [SponsorBlock](https://sponsor.ajay.app) and
+[LRCLIB](https://lrclib.net).
 
 FireTube isn't affiliated with, endorsed by or sponsored by YouTube or Google.
