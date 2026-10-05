@@ -135,7 +135,7 @@ class TitleCleanerTest {
     fun `song names match exactly, or word for word when long enough`() {
         assertTrue(TitleCleaner.sameSong("Here Comes The Sun", "Here Comes The Sun - Remastered 2009"))
         assertTrue(TitleCleaner.sameSong("Hallelujah", "Hallelujah (Live)"))
-        assertTrue(TitleCleaner.sameSong("Never Gonna Give You Up", "Never Gonna Give You Up (7\" Mix) Extra"))
+        assertTrue(TitleCleaner.sameSong("Never Gonna Give You Up", "Never Gonna Give You Up (2022 Rework) Extra"))
         assertTrue(TitleCleaner.sameSong("Beyoncé", "BEYONCE"))
         // A single word only matches itself: "Live" isn't "Live Forever", and never "Alive".
         assertFalse(TitleCleaner.sameSong("Live", "Live Forever"))
@@ -161,6 +161,44 @@ class TitleCleanerTest {
         assertFalse(TitleCleaner.sameSong("Live", "Live Forever (Remastered)"))
         // Without its brackets this name is empty, which never matches by that rule.
         assertFalse(TitleCleaner.sameSong("(Orange Version)", "Umbrella"))
+    }
+
+    @Test
+    fun `a different recording is a different song`() {
+        listOf(
+            "Song (Remix)" to "Song",
+            "Song (Acoustic)" to "Song",
+            "Song (Instrumental)" to "Song",
+            "Song (Karaoke Version)" to "Song",
+            "Song (Sped Up)" to "Song",
+            "Song (Slowed + Reverb)" to "Song",
+            "Song (Club Mix)" to "Song",
+            "Song (Reprise)" to "Song",
+            "Bad (Part 2)" to "Bad",
+            "Bad (Pt. 2)" to "Bad",
+            "Intro (Interlude)" to "Intro",
+            "Song (Remix)" to "Song (Acoustic)",
+            "Song (Instrumental)" to "Song (Karaoke Version)",
+            // Containment doesn't let them through either.
+            "Here Comes The Sun (Instrumental)" to "Here Comes The Sun",
+            "Here Comes The Sun - Acoustic" to "Here Comes The Sun",
+        ).forEach { (a, b) ->
+            assertFalse("$a ~ $b", TitleCleaner.sameSong(a, b))
+            assertFalse("$b ~ $a", TitleCleaner.sameSong(b, a))
+        }
+        // The same version still matches itself, whichever way it's written.
+        assertTrue(TitleCleaner.sameSong("Song (Remix)", "Song - Remix"))
+        assertTrue(TitleCleaner.sameSong("Bad (Part 2)", "Bad [Part 2]"))
+        // Versions with the same words still match: "(Live)" and "(Radio Edit)" are cleaned away.
+        assertTrue(TitleCleaner.sameSong("Song (Radio Edit)", "Song"))
+        assertTrue(TitleCleaner.sameSong("Song (Live)", "Song"))
+    }
+
+    @Test
+    fun `titles that say they're instrumental`() {
+        assertTrue(TitleCleaner.saysInstrumental("Song (Instrumental)"))
+        assertTrue(TitleCleaner.saysInstrumental("Song - Karaoke Version"))
+        assertFalse(TitleCleaner.saysInstrumental("Song (Official Video)"))
     }
 
     @Test

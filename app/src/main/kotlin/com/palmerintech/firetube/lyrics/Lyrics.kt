@@ -71,23 +71,30 @@ class Lyrics(
     private suspend fun fetch(track: Track): LyricsResult {
         val queries = TitleCleaner.queries(track.title, track.artist)
         val duration = track.durationSeconds.toDouble()
+        // Unless the title says so, an entry marked instrumental (no words) is only the answer
+        // when nothing with words turns up: a vocal song shouldn't read "instrumental".
+        val wantsWords = !TitleCleaner.saysInstrumental(track.title)
         var fallback: Record? = null
+        fun consider(r: Record): Boolean {
+            if (closeLength(r, duration) && (r.hasWords || !wantsWords)) return true
+            if (fallback == null || (wantsWords && r.hasWords && !fallback!!.hasWords)) fallback = r
+            return false
+        }
         // An exact match (artist, song and length) is the best answer; LRCLIB also looks it up
         // from other sources when it doesn't have it yet.
         queries.firstOrNull()?.takeIf { duration > 0 }?.let { q ->
             get("get", "track_name" to q.title, "artist_name" to q.artist, "duration" to track.durationSeconds.toString())
                 ?.let { body -> json.decodeFromString<Record>(body) }
                 ?.takeIf { it.hasLyrics && matches(it, q) }
-                ?.let { if (closeLength(it, duration)) return it.toResult(true) else fallback = it }
+                ?.let { if (consider(it)) return it.toResult(true) }
         }
         // Then a search per variant, and finally a free-text one in case the split was wrong.
         val searches = queries.map { q -> q to arrayOf("track_name" to q.title, "artist_name" to q.artist) } +
             queries.take(1).map { q -> q to arrayOf("q" to "${q.artist} ${q.title}") }
         for ((q, params) in searches) {
             val hits = get("search", *params)?.let { json.decodeFromString<List<Record>>(it) }.orEmpty()
-            val best = pick(hits, q, duration) ?: continue
-            if (closeLength(best, duration)) return best.toResult(true)
-            if (fallback == null) fallback = best
+            val best = pick(hits, q, duration, wantsWords) ?: continue
+            if (consider(best)) return best.toResult(true)
         }
         // Right song, different cut (radio edit, extended video): the words fit, the timings don't.
         return fallback?.toResult(false) ?: LyricsResult.NotFound
@@ -166,11 +173,15 @@ class Lyrics(
         fun matches(r: Record, q: LyricsQuery): Boolean =
             TitleCleaner.sameSong(q.title, r.trackName) && TitleCleaner.sameArtist(q.artist, r.artistName)
 
-        /** The best usable hit: right name, then right length, words over "instrumental", synced, closest length. */
-        fun pick(hits: List<Record>, q: LyricsQuery, duration: Double): Record? = hits
+        /**
+         * The best usable hit: right name, then right length, words over "instrumental", synced,
+         * closest length. When [wantsWords], words come before the right length.
+         */
+        fun pick(hits: List<Record>, q: LyricsQuery, duration: Double, wantsWords: Boolean = true): Record? = hits
             .filter { it.hasLyrics && matches(it, q) }
             .sortedWith(
-                compareByDescending<Record> { closeLength(it, duration) }
+                compareByDescending<Record> { wantsWords && it.hasWords }
+                    .thenByDescending { closeLength(it, duration) }
                     .thenByDescending { it.hasWords }
                     .thenByDescending { it.synced }
                     .thenBy { if (duration > 0) abs(it.duration - duration) else 0.0 },

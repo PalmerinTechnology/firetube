@@ -46,6 +46,15 @@ object TitleCleaner {
         RegexOption.IGNORE_CASE,
     )
 
+    /**
+     * Words that make a differently-worded (or wordless) recording of a song: a name with one of
+     * them never matches the name without it.
+     */
+    private val distinguishingWords = setOf(
+        "acoustic", "remix", "remixed", "rmx", "unplugged", "instrumental", "karaoke", "part", "pt",
+        "reprise", "interlude", "intro", "outro", "sped", "slowed", "mix", "edit",
+    )
+
     /** Shortest name (in letters) that may match by being contained in a longer one. */
     private const val MIN_CONTAINED = 4
 
@@ -118,9 +127,11 @@ object TitleCleaner {
     }
 
     /**
-     * Whether two song names are the same song: equal once cleaned (with or without whatever is
-     * still in brackets), or one contained word for word in the other. Containment is only trusted for names of two or more words, so "Live"
-     * matches neither "Live Forever" nor "Alive". Empty names never match.
+     * Whether two song names are the same song: equal once cleaned (also after dropping brackets
+     * that don't change the recording), or one contained word for word in the other. Containment
+     * is only trusted for names of two or more words, so "Live" matches neither "Live Forever"
+     * nor "Alive". A remix, acoustic take, instrumental, "Part 2" and so on is a different song
+     * here, since its lyrics (or lack of them) differ. Empty names never match.
      */
     fun sameSong(a: String, b: String): Boolean {
         val x = words(cleanTitle(a))
@@ -128,13 +139,21 @@ object TitleCleaner {
         if (x.isEmpty() || y.isEmpty()) return false
         if (x.joinToString("") == y.joinToString("")) return true
         // Brackets this cleaner doesn't recognise ("Umbrella (Orange Version)"): the same name
-        // without any of them still counts, even for one word.
-        val bareX = normalize(bracketed.replace(cleanTitle(a), ""))
-        if (bareX.isNotEmpty() && bareX == normalize(bracketed.replace(cleanTitle(b), ""))) return true
+        // without them still counts, even for one word, unless they name a different recording.
+        val bareX = normalize(dropIncidentalBrackets(cleanTitle(a)))
+        if (bareX.isNotEmpty() && bareX == normalize(dropIncidentalBrackets(cleanTitle(b)))) return true
         val (short, long) = if (x.size <= y.size) x to y else y to x
         if (short.size < 2 || short.joinToString("").length < MIN_CONTAINED) return false
+        // "Here Comes The Sun" isn't "Here Comes The Sun (Instrumental)".
+        if (long.any { it in distinguishingWords && it !in short }) return false
         return long.windowed(short.size).any { it == short }
     }
+
+    /** Whether a title says it's a recording without vocals ("Song (Instrumental)", "Karaoke"). */
+    fun saysInstrumental(title: String) = words(title).any { it == "instrumental" || it == "karaoke" }
+
+    private fun dropIncidentalBrackets(title: String) =
+        bracketed.replace(title) { m -> if (words(m.groupValues[1]).any { it in distinguishingWords }) m.value else "" }
 
     /**
      * Whether a result's artist is the queried one. LRCLIB lists collaborations as one string

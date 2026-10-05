@@ -208,6 +208,39 @@ class LyricsTest {
     }
 
     @Test
+    fun `an instrumental entry doesn't beat words for a vocal track`() = runTest {
+        val l = lyrics { url ->
+            when (url.encodedPath) {
+                "/api/get" -> 200 to record(synced = null, plain = null, instrumental = true) // right length, no words
+                "/api/search" -> 200 to "[" + listOf(
+                    record(synced = null, plain = null, instrumental = true),
+                    record(duration = 230.0, synced = null, plain = "The real words of the song"),
+                ).joinToString(",") + "]"
+                else -> null
+            }
+        }
+        assertEquals(LyricsResult.Plain("The real words of the song"), l.lookup(track))
+        // With nothing else to go on, it still says instrumental.
+        val only = lyrics { url -> if (url.encodedPath == "/api/get") 200 to record(synced = null, plain = null, instrumental = true) else null }
+        assertEquals(LyricsResult.Instrumental, only.lookup(track))
+    }
+
+    @Test
+    fun `instrumental and vocal versions don't get each other's result`() = runTest {
+        val vocalEntries = lyrics { url ->
+            if (url.encodedPath == "/api/search") 200 to "[" + record(name = "Song") + "]" else null
+        }
+        val karaoke = Track("kar", "Artist - Song (Instrumental)", "ArtistVEVO", 200, null)
+        assertEquals(LyricsResult.NotFound, vocalEntries.lookup(karaoke))
+
+        val instrumentalEntries = lyrics { url ->
+            if (url.encodedPath == "/api/search") 200 to "[" + record(name = "Song (Instrumental)", synced = null, plain = null, instrumental = true) + "]" else null
+        }
+        assertEquals(LyricsResult.Instrumental, instrumentalEntries.lookup(karaoke))
+        assertEquals(LyricsResult.NotFound, instrumentalEntries.lookup(track))
+    }
+
+    @Test
     fun `nulls in a result fall back to defaults`() = runTest {
         val l = lyrics { url ->
             if (url.encodedPath == "/api/search") {
