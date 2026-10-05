@@ -124,12 +124,16 @@ fun FireTubeRoot(container: AppContainer, pendingLink: String?, onLinkHandled: (
     val showMessage: (String) -> Unit = { msg -> scope.launch { snackbar.showSnackbar(msg) } }
 
     // Links shared to / opened with FireTube.
-    // Links shared to / opened with FireTube, and voice searches. The link is cleared only after
-    // it's handled: clearing it first would change this effect's key and cancel the work.
+    // Links shared to / opened with FireTube, voice searches and the widget. The link is cleared
+    // only after it's handled: clearing it first would change this effect's key and cancel the work.
     LaunchedEffect(pendingLink) {
         val link = pendingLink ?: return@LaunchedEffect
         try {
-            if (link.startsWith(MainActivity.SEARCH_PREFIX)) {
+            if (link == MainActivity.OPEN_PLAYER) {
+                // From the widget. After a cold start the queue takes a moment to come back.
+                val hasSong = withTimeoutOrNull(5_000) { container.player.state.first { it.current != null } }
+                if (hasSong != null) sheet.expand()
+            } else if (link.startsWith(MainActivity.SEARCH_PREFIX)) {
                 val query = link.removePrefix(MainActivity.SEARCH_PREFIX)
                 val top = attempt { container.source.search(query).items }.orEmpty()
                     .filterIsInstance<SearchResult.TrackResult>().firstOrNull()?.track
