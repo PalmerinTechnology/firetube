@@ -52,6 +52,7 @@ import androidx.media3.common.util.UnstableApi
 import com.palmerintech.firetube.AppContainer
 import com.palmerintech.firetube.R
 import com.palmerintech.firetube.extractor.Track
+import com.palmerintech.firetube.ui.artistLabel
 import kotlinx.coroutines.launch
 
 /** Opens the per-track actions sheet from anywhere in the UI. */
@@ -103,7 +104,7 @@ fun TrackMenuHost(container: AppContainer, controller: TrackMenuController, onSh
                 Spacer(Modifier.width(12.dp))
                 Column {
                     Text(track.title, style = MaterialTheme.typography.titleMedium, maxLines = 2)
-                    Text(track.artist, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(artistLabel(track), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             HorizontalDivider(Modifier.padding(vertical = 8.dp))

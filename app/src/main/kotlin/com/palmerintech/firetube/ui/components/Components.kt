@@ -33,6 +33,7 @@ import com.palmerintech.firetube.R
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.palmerintech.firetube.ui.artistLabel
 import com.palmerintech.firetube.ui.theme.LocalFireBrushes
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -109,7 +110,7 @@ fun TrackRow(
                     Spacer(Modifier.width(4.dp))
                 }
                 Text(
-                    listOf(track.artist, formatDuration(track.durationSeconds)).filter { it.isNotEmpty() }.joinToString(" • "),
+                    listOf(artistLabel(track), formatDuration(track.durationSeconds)).filter { it.isNotEmpty() }.joinToString(" • "),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -146,7 +147,7 @@ fun TrackCard(track: Track, onClick: () -> Unit, onLongClick: () -> Unit, modifi
         }
         Spacer(Modifier.padding(top = 6.dp))
         Text(track.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        Text(track.artist, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(artistLabel(track), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
