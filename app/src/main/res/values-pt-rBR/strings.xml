@@ -189,7 +189,7 @@
 
     <!-- Playback speed -->
     <string name="speed_title">Velocidade de reprodução</string>
-    <string name="speed_unsupported">Este dispositivo não permite mudar a velocidade; ele toca na própria velocidade.</string>
+    <string name="speed_unsupported">Este dispositivo não permite mudar a velocidade; ele usa a velocidade normal.</string>
     <string name="speed_custom">Personalizada: %1$s</string>
 
     <!-- Lyrics -->
@@ -232,7 +232,7 @@
     <string name="settings_song_cache">Cache de músicas</string>
     <string name="settings_song_cache_summary">%1$d MB · músicas tocadas recentemente tocam de novo sem usar dados</string>
     <string name="settings_cache_size">%1$d MB</string>
-    <string name="settings_cache_restart">Vale depois que o FireTube reiniciar</string>
+    <string name="settings_cache_restart">Entra em vigor quando o FireTube reiniciar</string>
     <string name="settings_clear_cache">Limpar cache</string>
     <string name="settings_clear_cache_summary">Os downloads são mantidos</string>
     <string name="settings_cache_cleared">Cache limpo</string>

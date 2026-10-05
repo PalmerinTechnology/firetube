@@ -87,7 +87,7 @@ fun StatsScreen(container: AppContainer, onBack: () -> Unit, contentPadding: Pad
                         FilterChip(
                             selected = p == period,
                             onClick = { vm.period.value = p },
-                            label = { Text(stringResource(p.label), maxLines = 1) },
+                            label = { Text(stringResource(p.label), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                             modifier = Modifier.focusRing(RoundedCornerShape(8.dp)),
                         )
                     }

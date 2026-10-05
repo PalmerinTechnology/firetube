@@ -121,7 +121,7 @@
     <string name="stats_period_week">Esta semana</string>
     <string name="stats_period_month">Este mes</string>
     <string name="stats_period_year">Este año</string>
-    <string name="stats_period_all">Siempre</string>
+    <string name="stats_period_all">Todo</string>
     <string name="stats_empty_week">No escuchaste nada esta semana</string>
     <string name="stats_empty_month">No escuchaste nada este mes</string>
     <string name="stats_empty_year">No escuchaste nada este año</string>
@@ -189,7 +189,7 @@
 
     <!-- Playback speed -->
     <string name="speed_title">Velocidad de reproducción</string>
-    <string name="speed_unsupported">Este dispositivo no permite cambiar la velocidad; reproduce a la suya.</string>
+    <string name="speed_unsupported">Este dispositivo no permite cambiar la velocidad; usa su velocidad normal.</string>
     <string name="speed_custom">Personalizada: %1$s</string>
 
     <!-- Lyrics -->
