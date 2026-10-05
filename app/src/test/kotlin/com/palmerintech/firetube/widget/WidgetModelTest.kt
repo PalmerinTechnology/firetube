@@ -113,9 +113,10 @@ class WidgetModelTest {
     @Test
     fun commandsWithoutARunningPlayer() {
         assertEquals(WidgetCommand.Play, WidgetCommand.from(NowPlayingWidget.ACTION_PLAY, playerRunning = false))
-        assertNull(WidgetCommand.from(NowPlayingWidget.ACTION_PAUSE, playerRunning = false))
-        assertNull(WidgetCommand.from(NowPlayingWidget.ACTION_NEXT, playerRunning = false))
-        assertNull(WidgetCommand.from(NowPlayingWidget.ACTION_PREVIOUS, playerRunning = false))
+        // The widget may be stale (the process died mid-song): pressing these just redraws it paused.
+        assertEquals(WidgetCommand.Redraw, WidgetCommand.from(NowPlayingWidget.ACTION_PAUSE, playerRunning = false))
+        assertEquals(WidgetCommand.Redraw, WidgetCommand.from(NowPlayingWidget.ACTION_NEXT, playerRunning = false))
+        assertEquals(WidgetCommand.Redraw, WidgetCommand.from(NowPlayingWidget.ACTION_PREVIOUS, playerRunning = false))
     }
 
     @Test

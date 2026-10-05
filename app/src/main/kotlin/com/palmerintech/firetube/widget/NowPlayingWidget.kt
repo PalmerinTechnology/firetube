@@ -16,6 +16,7 @@ import androidx.annotation.VisibleForTesting
 import androidx.media3.common.util.UnstableApi
 import com.palmerintech.firetube.FireTubeApp
 import com.palmerintech.firetube.R
+import com.palmerintech.firetube.player.QueueStore
 import com.palmerintech.firetube.ui.MainActivity
 import kotlinx.coroutines.launch
 
@@ -40,22 +41,25 @@ class NowPlayingWidget : AppWidgetProvider() {
             WidgetCommand.Pause -> player.pause()
             WidgetCommand.Next -> player.next()
             WidgetCommand.Previous -> player.previous()
+            WidgetCommand.Redraw -> redraw(context)
         }
     }
 
-    /** With the player running, show its state; otherwise the saved queue, paused (play resumes it). */
+    /**
+     * With the player running, show its state; otherwise the saved queue, paused (play resumes it).
+     * Also what clears a stale "playing" widget after a reboot or app update (both send onUpdate).
+     */
     private fun redraw(context: Context) {
         live?.let { (model, art) -> return push(context, model, art) }
         val container = (context.applicationContext as FireTubeApp).container
-        val pending = goAsync()
+        val pending: PendingResult? = goAsync() // null outside a real broadcast (e.g. a test host)
         container.appScope.launch {
             try {
-                val saved = container.queueStore.load()?.takeIf { it.tracks.isNotEmpty() }
-                val track = saved?.let { it.tracks[it.index.coerceIn(0, it.tracks.lastIndex)].toTrack() }
+                val model = idleModel(container.queueStore)
                 // The service may have started meanwhile; its state wins.
-                if (live == null) push(context, WidgetModel(track), art = null)
+                if (live == null) push(context, model, art = null)
             } finally {
-                pending.finish()
+                pending?.finish()
             }
         }
     }
@@ -71,6 +75,13 @@ class NowPlayingWidget : AppWidgetProvider() {
 
         @Volatile
         var live: Live? = null
+
+        /** Without a running player: the saved queue's song, paused, or "Tap to start". */
+        @VisibleForTesting
+        internal suspend fun idleModel(queueStore: QueueStore): WidgetModel {
+            val saved = queueStore.load()?.takeIf { it.tracks.isNotEmpty() } ?: return WidgetModel.Empty
+            return WidgetModel(saved.tracks[saved.index.coerceIn(0, saved.tracks.lastIndex)].toTrack())
+        }
 
         /** Redraws every placed widget. Cheap when none are placed. */
         fun push(context: Context, model: WidgetModel, art: Bitmap?) {
@@ -105,11 +116,22 @@ class NowPlayingWidget : AppWidgetProvider() {
                 views.setViewVisibility(R.id.widget_text, View.VISIBLE)
                 for (id in listOf(R.id.widget_previous, R.id.widget_play_pause, R.id.widget_next)) views.setViewVisibility(id, View.GONE)
                 views.setOnClickPendingIntent(android.R.id.background, openApp(context, nowPlaying = false))
+                views.setContentDescription(
+                    android.R.id.background,
+                    context.getString(R.string.widget_empty_description, context.getString(R.string.app_name)),
+                )
                 return views
             }
 
             views.setTextViewText(R.id.widget_title, track.title)
             views.setTextViewText(R.id.widget_artist, track.artist)
+            // What screen readers say for the tappable song area, including on the compact size where
+            // the title isn't shown.
+            views.setContentDescription(
+                android.R.id.background,
+                if (track.artist.isBlank()) context.getString(R.string.widget_song_description_no_artist, track.title)
+                else context.getString(R.string.widget_song_description, track.title, track.artist),
+            )
             // Hidden but still laid out on the compact size, so the buttons stay pushed to the end.
             views.setViewVisibility(R.id.widget_text, if (size.showsText) View.VISIBLE else View.INVISIBLE)
             views.setOnClickPendingIntent(android.R.id.background, openApp(context, nowPlaying = true))

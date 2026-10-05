@@ -53,6 +53,13 @@ class LibraryCallback(
     }
 
     /**
+     * Set once play was pressed on an empty player and the saved queue is being resumed here;
+     * PlaybackService's own restore then stands down, so the queue is only applied once.
+     */
+    var resuming = false
+        private set
+
+    /**
      * Play pressed while the player is empty — e.g. on the home-screen widget after FireTube was
      * closed, before the service's own restore has finished: pick up the saved queue.
      */
@@ -60,14 +67,9 @@ class LibraryCallback(
         mediaSession: MediaSession,
         controller: MediaSession.ControllerInfo,
         isForPlayback: Boolean,
-    ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> = scope.future {
-        val saved = container.queueStore.load()?.takeIf { it.tracks.isNotEmpty() }
-            ?: throw UnsupportedOperationException("No saved queue")
-        MediaSession.MediaItemsWithStartPosition(
-            saved.tracks.map { MediaItems.of(it.toTrack()) },
-            saved.index.coerceIn(0, saved.tracks.lastIndex),
-            saved.positionMs,
-        )
+    ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+        if (isForPlayback) resuming = true
+        return scope.future { resumptionOf(container.queueStore.load()) }
     }
 
     override fun onGetLibraryRoot(
@@ -155,12 +157,22 @@ class LibraryCallback(
         )
         .build()
 
-    private companion object {
-        const val ROOT = "root"
-        const val RECENT = "recent"
-        const val FAVORITES = "favorites"
-        const val PLAYLISTS = "playlists"
-        const val TRENDING = "trending"
-        const val PLAYLIST_PREFIX = "playlist:"
+    companion object {
+        /** The saved queue as Media3 resumes it; throws (Media3 then just plays) when there's none. */
+        fun resumptionOf(saved: QueueStore.Saved?): MediaSession.MediaItemsWithStartPosition {
+            if (saved == null || saved.tracks.isEmpty()) throw UnsupportedOperationException("No saved queue")
+            return MediaSession.MediaItemsWithStartPosition(
+                saved.tracks.map { MediaItems.of(it.toTrack()) },
+                saved.index.coerceIn(0, saved.tracks.lastIndex),
+                saved.positionMs,
+            )
+        }
+
+        private const val ROOT = "root"
+        private const val RECENT = "recent"
+        private const val FAVORITES = "favorites"
+        private const val PLAYLISTS = "playlists"
+        private const val TRENDING = "trending"
+        private const val PLAYLIST_PREFIX = "playlist:"
     }
 }

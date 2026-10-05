@@ -56,6 +56,7 @@ class PlaybackService : MediaLibraryService() {
     /** What the session controls: [exoPlayer], or a [CastPlayer] wrapping it that moves playback to a Chromecast. */
     private lateinit var player: Player
     private var session: MediaLibrarySession? = null
+    private val library by lazy { LibraryCallback(container, scope) }
     private lateinit var widget: WidgetUpdater
 
     private val leveler = VolumeLeveler()
@@ -109,7 +110,7 @@ class PlaybackService : MediaLibraryService() {
         val openApp = PendingIntent.getActivity(
             this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        session = MediaLibrarySession.Builder(this, player, LibraryCallback(container, scope))
+        session = MediaLibrarySession.Builder(this, player, library)
             .setSessionActivity(openApp)
             .build()
 
@@ -303,7 +304,8 @@ class PlaybackService : MediaLibraryService() {
     private suspend fun restoreQueue() {
         if (player.mediaItemCount > 0) return
         val saved = container.queueStore.load() ?: return
-        if (saved.tracks.isEmpty() || player.mediaItemCount > 0) return
+        // Play may have been pressed meanwhile (e.g. on the widget); the session resumes the queue then.
+        if (saved.tracks.isEmpty() || player.mediaItemCount > 0 || library.resuming) return
         player.setMediaItems(
             saved.tracks.map { MediaItems.of(it.toTrack()) },
             saved.index.coerceIn(0, saved.tracks.lastIndex),

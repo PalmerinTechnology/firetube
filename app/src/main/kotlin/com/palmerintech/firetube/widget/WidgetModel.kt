@@ -62,20 +62,26 @@ enum class WidgetSize(val minWidthDp: Int) {
 
 /** What a button press on the widget should do. */
 enum class WidgetCommand {
-    Play, Pause, Next, Previous;
+    Play, Pause, Next, Previous,
+
+    /**
+     * Pause or skip pressed with no player running. If the process died mid-song (crash, low
+     * memory, force stop) the widget still shows it playing, so just redraw it paused; acting on a
+     * queue that isn't loaded would only start the service for nothing.
+     */
+    Redraw;
 
     companion object {
         /**
-         * The command for a widget broadcast, or null to ignore it. Without a running player only
-         * play does anything (it starts the service and resumes the saved queue); skipping or pausing
-         * a queue that isn't loaded would just start the service for nothing.
+         * The command for a widget broadcast, or null if it isn't one. Without a running player only
+         * play does anything (it starts the service and resumes the saved queue).
          */
         @UnstableApi
         fun from(action: String?, playerRunning: Boolean): WidgetCommand? = when (action) {
             NowPlayingWidget.ACTION_PLAY -> Play
-            NowPlayingWidget.ACTION_PAUSE -> Pause.takeIf { playerRunning }
-            NowPlayingWidget.ACTION_NEXT -> Next.takeIf { playerRunning }
-            NowPlayingWidget.ACTION_PREVIOUS -> Previous.takeIf { playerRunning }
+            NowPlayingWidget.ACTION_PAUSE -> if (playerRunning) Pause else Redraw
+            NowPlayingWidget.ACTION_NEXT -> if (playerRunning) Next else Redraw
+            NowPlayingWidget.ACTION_PREVIOUS -> if (playerRunning) Previous else Redraw
             else -> null
         }
     }

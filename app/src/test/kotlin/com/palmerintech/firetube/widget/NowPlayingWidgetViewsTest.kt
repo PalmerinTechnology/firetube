@@ -78,6 +78,14 @@ class NowPlayingWidgetViewsTest {
     }
 
     @Test
+    fun screenReadersHearTheSongEvenWhenTheTitleIsHidden() {
+        val view = render(WidgetModel(song, playing = true), WidgetSize.Compact)
+        assertEquals("Song by Artist. Opens Now Playing", view.contentDescription)
+        assertEquals("Song. Opens Now Playing", render(WidgetModel(song.copy(artist = "")), WidgetSize.Compact).contentDescription)
+        assertEquals("FireTube. Tap to start", render(WidgetModel.Empty, WidgetSize.Compact).contentDescription)
+    }
+
+    @Test
     fun skipButtonsAreDisabledWhenTheyCantDoAnything() {
         val view = render(WidgetModel(song).idle())
         assertFalse(view.findViewById<View>(R.id.widget_next).isEnabled)
