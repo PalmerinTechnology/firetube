@@ -16,6 +16,7 @@ crash details, no personal data), which you can turn off in Settings.
 - **Radio-style autoplay:** when the queue runs out, related songs keep playing.
 - **Background playback** with lock-screen, notification and headset controls, a home-screen widget, and a sleep timer.
 - **Playlists and Favorites.** Drag to reorder, or import any YouTube playlist.
+- **Your stats:** top songs and artists, listening time and when you listen, worked out on the device.
 - **Offline downloads**, and a song cache so replays don't use data.
 - **Even-out volume** between loud and quiet uploads.
 - **Skip non-music sections** such as intros and talking, using [SponsorBlock](https://sponsor.ajay.app).
