@@ -120,6 +120,7 @@ private fun rememberPlaybackClock(state: PlayerUiState): () -> Long {
             delay(CLOCK_STEP_MS)
         }
     }
+    // TODO: scale the elapsed time by playback speed once PlayerUiState has it (PR #34).
     return remember { { estimatePosition(reported, anchor, now, running) } }
 }
 

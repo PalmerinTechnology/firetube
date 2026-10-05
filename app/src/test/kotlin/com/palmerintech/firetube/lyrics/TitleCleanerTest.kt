@@ -151,6 +151,26 @@ class TitleCleanerTest {
     }
 
     @Test
+    fun `one-word names match through brackets the cleaner doesn't know`() {
+        assertTrue(TitleCleaner.sameSong("Despacito", "Despacito (Letra)"))
+        assertTrue(TitleCleaner.sameSong("HUMBLE.", "HUMBLE. (Prod. Mike WiLL)"))
+        assertTrue(TitleCleaner.sameSong("Umbrella", "Umbrella (Orange Version)"))
+        assertTrue(TitleCleaner.sameSong("Umbrella [Orange Version]", "Umbrella"))
+        // Still only the same name: other words outside the brackets don't match.
+        assertFalse(TitleCleaner.sameSong("Umbrella", "Umbrella Song (Orange Version)"))
+        assertFalse(TitleCleaner.sameSong("Live", "Live Forever (Remastered)"))
+        // Without its brackets this name is empty, which never matches by that rule.
+        assertFalse(TitleCleaner.sameSong("(Orange Version)", "Umbrella"))
+    }
+
+    @Test
+    fun `prod and letra brackets are packaging`() {
+        assertEquals("Despacito", TitleCleaner.cleanTitle("Despacito (Letra)"))
+        assertEquals("HUMBLE.", TitleCleaner.cleanTitle("HUMBLE. (Prod. Mike WiLL)"))
+        assertEquals(LyricsQuery("Kendrick Lamar", "HUMBLE."), first("Kendrick Lamar - HUMBLE. (Prod. Mike WiLL) [Official Video]", "KendrickLamarVEVO"))
+    }
+
+    @Test
     fun `artists match loosely but not by chance`() {
         assertTrue(TitleCleaner.sameArtist("Adele", "Adele, Adele"))
         assertTrue(TitleCleaner.sameArtist("Simon", "Simon & Garfunkel"))

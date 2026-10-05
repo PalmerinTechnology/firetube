@@ -195,6 +195,19 @@ class LyricsTest {
     }
 
     @Test
+    fun `a bracketed version of a one-word song matches, by the same artist only`() = runTest {
+        val umbrella = Track("umb", "Rihanna - Umbrella (Orange Version)", "RihannaVEVO", 260, null)
+        val hit = lyrics { url ->
+            if (url.encodedPath == "/api/search") 200 to "[" + record(name = "Umbrella", artist = "Rihanna", duration = 258.0) + "]" else null
+        }
+        assertTrue(hit.lookup(umbrella) is LyricsResult.Synced)
+        val other = lyrics { url ->
+            if (url.encodedPath == "/api/search") 200 to "[" + record(name = "Umbrella", artist = "The Baseballs", duration = 258.0) + "]" else null
+        }
+        assertEquals(LyricsResult.NotFound, other.lookup(umbrella))
+    }
+
+    @Test
     fun `nulls in a result fall back to defaults`() = runTest {
         val l = lyrics { url ->
             if (url.encodedPath == "/api/search") {

@@ -12,7 +12,7 @@ data class LyricsQuery(val artist: String, val title: String)
 object TitleCleaner {
     /** Words that mark a bracketed part as video packaging rather than part of the song name. */
     private val noise = Regex(
-        """\b(official|video|audio|lyrics?|visuali[sz]er|m/?v|hd|hq|4k|8k|1080p|720p|remaster(ed)?|explicit|clean|color coded|music video|full song|eng(lish)? sub)\b""",
+        """\b(official|video|audio|lyrics?|visuali[sz]er|m/?v|hd|hq|4k|8k|1080p|720p|remaster(ed)?|explicit|clean|color coded|music video|full song|eng(lish)? sub|prod|letra)\b""",
         RegexOption.IGNORE_CASE,
     )
     private val bracketed = Regex("""\s*[(\[{【]([^)\]}】]*)[)\]}】]""")
@@ -118,8 +118,8 @@ object TitleCleaner {
     }
 
     /**
-     * Whether two song names are the same song: equal once cleaned, or one contained word for
-     * word in the other. Containment is only trusted for names of two or more words, so "Live"
+     * Whether two song names are the same song: equal once cleaned (with or without whatever is
+     * still in brackets), or one contained word for word in the other. Containment is only trusted for names of two or more words, so "Live"
      * matches neither "Live Forever" nor "Alive". Empty names never match.
      */
     fun sameSong(a: String, b: String): Boolean {
@@ -127,6 +127,10 @@ object TitleCleaner {
         val y = words(cleanTitle(b))
         if (x.isEmpty() || y.isEmpty()) return false
         if (x.joinToString("") == y.joinToString("")) return true
+        // Brackets this cleaner doesn't recognise ("Umbrella (Orange Version)"): the same name
+        // without any of them still counts, even for one word.
+        val bareX = normalize(bracketed.replace(cleanTitle(a), ""))
+        if (bareX.isNotEmpty() && bareX == normalize(bracketed.replace(cleanTitle(b), ""))) return true
         val (short, long) = if (x.size <= y.size) x to y else y to x
         if (short.size < 2 || short.joinToString("").length < MIN_CONTAINED) return false
         return long.windowed(short.size).any { it == short }
