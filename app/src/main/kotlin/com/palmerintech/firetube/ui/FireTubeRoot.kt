@@ -36,8 +36,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import com.palmerintech.firetube.ui.player.rememberPlayerSheetState
+import com.palmerintech.firetube.ui.player.CollapseWhenNoSong
 import com.palmerintech.firetube.ui.player.rememberArtworkColor
 import com.palmerintech.firetube.ui.components.FlameIcon
 import com.palmerintech.firetube.ui.components.focusRing
@@ -84,7 +86,9 @@ import com.palmerintech.firetube.ui.player.NowPlayingScreen
 import com.palmerintech.firetube.ui.search.SearchScreen
 import com.palmerintech.firetube.ui.settings.SettingsScreen
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.Serializable
 import kotlin.reflect.KClass
 
@@ -140,7 +144,10 @@ fun FireTubeRoot(container: AppContainer, pendingLink: String?, onLinkHandled: (
                     track == null -> showMessage("Couldn't open that video")
                     else -> {
                         container.player.play(listOf(track))
-                        sheet.expand()
+                        // Open once the player has the song, so Now Playing slides up out of the
+                        // mini player rather than appearing already open.
+                        val arrived = withTimeoutOrNull(5_000) { container.player.state.first { it.current?.id == track.id } }
+                        if (arrived != null) sheet.expand()
                     }
                 }
             }
@@ -163,12 +170,10 @@ fun FireTubeRoot(container: AppContainer, pendingLink: String?, onLinkHandled: (
     val flingSpeed = with(LocalDensity.current) { 800.dp.toPx() }
     // The mini player card sits 4dp below its measured top; Now Playing's copy adds the same padding.
     val cardInset = with(LocalDensity.current) { 4.dp.toPx() }
-    // The queue ran out while Now Playing was open: close it, or it would pop back open by itself
-    // with the next song and keep D-pad focus out of the app meanwhile.
-    // Also covers a drag up from the mini player cut short by the mini player disappearing.
-    LaunchedEffect(playerState.current == null) { if (playerState.current == null && sheet.isVisible) sheet.collapse() }
+    CollapseWhenNoSong(sheet, hasSong = playerState.current != null, connected = playerState.connected)
     CompositionLocalProvider(LocalTrackMenu provides menu, LocalNowPlaying provides nowPlaying) {
-        Box(Modifier.fillMaxSize()) {
+        // Until the mini player is laid out, Now Playing slides the screen's full height.
+        Box(Modifier.fillMaxSize().onSizeChanged { sheet.fallbackTravel = it.height.toFloat() }) {
             val wide = LocalConfiguration.current.screenWidthDp >= WIDE_SCREEN_DP
             val isSelected = { tab: Tab -> backStack?.destination?.hierarchy()?.any { it.hasRoute(tab.routeClass) } == true }
             val select = { tab: Tab ->
@@ -211,7 +216,12 @@ fun FireTubeRoot(container: AppContainer, pendingLink: String?, onLinkHandled: (
                             onOpen = { sheet.expand() },
                             modifier = Modifier.focusRequester(miniPlayerFocus)
                                 // Now Playing's top edge starts at the mini player's top.
-                                .onGloballyPositioned { sheet.travel = it.positionInRoot().y - cardInset },
+                                .onGloballyPositioned {
+                                    val at = it.positionInRoot()
+                                    sheet.travel = at.y - cardInset
+                                    sheet.miniLeft = at.x
+                                    sheet.miniWidth = it.size.width.toFloat()
+                                },
                             onDrag = sheet::dragBy,
                             onDragEnd = { velocity -> sheet.settle(velocity, flingSpeed) },
                             accent = accent,
