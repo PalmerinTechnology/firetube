@@ -45,7 +45,12 @@ data class ResolvedStream(
     val related: List<Track> = emptyList(),
     /** The track's own details (useful when all we had was an id, e.g. from a shared link). */
     val track: Track? = null,
+    /** Sections of a long video (a DJ mix, a full album), in order; empty when it has none. */
+    val chapters: List<Chapter> = emptyList(),
 )
+
+/** A titled section of a track, starting [startMs] into it. */
+data class Chapter(val title: String, val startMs: Long)
 
 class ExtractionException(message: String, cause: Throwable? = null) : Exception(message, cause) {
     /** True when retrying later won't help (removed, private, age-restricted, region-blocked). */

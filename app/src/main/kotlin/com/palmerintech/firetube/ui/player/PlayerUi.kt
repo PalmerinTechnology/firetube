@@ -51,6 +51,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Bedtime
@@ -82,6 +83,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -115,6 +117,8 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import coil3.compose.AsyncImage
 import com.palmerintech.firetube.AppContainer
+import com.palmerintech.firetube.extractor.Chapter
+import com.palmerintech.firetube.extractor.Chapters
 import com.palmerintech.firetube.player.PlaybackSpeed
 import com.palmerintech.firetube.player.PlayerUiState
 import com.palmerintech.firetube.player.SleepTimer
@@ -328,7 +332,13 @@ fun NowPlayingScreen(
     var showLyrics by remember { mutableStateOf(false) }
     var showSpeed by remember { mutableStateOf(false) }
     var addToPlaylist by remember { mutableStateOf(false) }
+    var showChapters by remember { mutableStateOf(false) }
     var scrubbing by remember { mutableStateOf<Float?>(null) }
+    // Long videos (mixes, full albums): known once the track has been resolved for playback.
+    // null until the new track's chapters are known, so an open sheet doesn't flicker shut on a track change.
+    val loadedChapters by remember(track.id) { container.resolver.chapters(track.id) }.collectAsState(null)
+    val chapters = loadedChapters.orEmpty()
+    LaunchedEffect(loadedChapters) { if (loadedChapters?.isEmpty() == true) showChapters = false }
 
     BackHandler(enabled = sheet.expanded, onBack = onClose)
 
@@ -407,10 +417,13 @@ fun NowPlayingScreen(
                     }
                 }
                 val controls = @Composable {
+                    val duration = state.durationMs.coerceAtLeast(1)
+                    val shown = scrubbing?.let { (it * duration).toLong() } ?: state.positionMs
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text(track.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.basicMarquee())
                             Text(track.artist, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                            if (chapters.isNotEmpty()) CurrentChapter(chapters, shown, player::seekTo) { showChapters = true }
                         }
                         IconButton(onClick = { scope.launch { container.library.toggleFavorite(track) } }) {
                             Icon(
@@ -421,14 +434,24 @@ fun NowPlayingScreen(
                         }
                     }
                     Spacer(Modifier.height(12.dp))
-                    val duration = state.durationMs.coerceAtLeast(1)
+                    val sliderColors = SliderDefaults.colors()
                     Slider(
                         value = scrubbing ?: (state.positionMs.toFloat() / duration).coerceIn(0f, 1f),
                         onValueChange = { scrubbing = it },
                         onValueChangeFinished = { scrubbing?.let { player.seekTo((it * duration).toLong()) }; scrubbing = null },
+                        colors = sliderColors,
+                        track = { sliderState ->
+                            SliderDefaults.Track(
+                                sliderState,
+                                colors = sliderColors,
+                                modifier = Modifier.chapterTicks(
+                                    chapters, state.durationMs, { sliderState.value },
+                                    sliderColors.activeTickColor, sliderColors.inactiveTickColor,
+                                ),
+                            )
+                        },
                     )
                     Row {
-                        val shown = scrubbing?.let { (it * duration).toLong() } ?: state.positionMs
                         Text(formatDuration(shown / 1000).ifEmpty { "0:00" }, style = MaterialTheme.typography.labelMedium)
                         Spacer(Modifier.weight(1f))
                         Text(formatDuration(state.durationMs / 1000), style = MaterialTheme.typography.labelMedium)
@@ -507,10 +530,39 @@ fun NowPlayingScreen(
         SpeedSheet(savedSpeed ?: state.speed, speedUnsupported, { scope.launch { container.settings.setPlaybackSpeed(it) } }) { showSpeed = false }
     }
     if (addToPlaylist) AddToPlaylistDialog(container, listOf(track)) { addToPlaylist = false }
+    if (showChapters) ChaptersSheet(track.title, chapters, state.positionMs, player::seekTo) { showChapters = false }
 }
 
 /** Sheet progress at which Now Playing's controls replace the mini player shown at its top. */
 private const val CONTROLS_FROM = 0.25f
+
+/**
+ * The chapter playing at [positionMs] (or being scrubbed to), under the artist; tap it for the
+ * list. Screen readers also get previous/next chapter actions; the skip buttons stay per track.
+ */
+@Composable
+private fun CurrentChapter(chapters: List<Chapter>, positionMs: Long, onSeek: (Long) -> Unit, onOpen: () -> Unit) {
+    val index = Chapters.indexAt(chapters, positionMs)
+    val title = chapters.getOrNull(index)?.title ?: "Chapters"
+    val shape = RoundedCornerShape(8.dp)
+    Row(
+        Modifier.padding(top = 4.dp).focusRing(shape).clip(shape)
+            .clickable(onClickLabel = "Show chapters", onClick = onOpen)
+            .semantics {
+                contentDescription = if (index >= 0) "Chapter ${index + 1} of ${chapters.size}: $title" else "Chapters"
+                customActions = buildList {
+                    chapters.getOrNull(index - 1)?.let { add(CustomAccessibilityAction("Previous chapter") { onSeek(it.startMs); true }) }
+                    chapters.getOrNull(index + 1)?.let { add(CustomAccessibilityAction("Next chapter") { onSeek(it.startMs); true }) }
+                }
+            }
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.AutoMirrored.Filled.List, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+        Spacer(Modifier.width(6.dp))
+        Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
 
 @UnstableApi
 @OptIn(ExperimentalMaterial3Api::class)
