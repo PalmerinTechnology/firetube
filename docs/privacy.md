@@ -4,7 +4,7 @@ title: FireTube privacy policy
 
 # FireTube privacy policy
 
-_Last updated: September 29, 2026_
+_Last updated: October 4, 2026_
 
 FireTube is a free, open-source music player with no ads. This policy explains what data the official builds (from [GitHub Releases](https://github.com/PalmerinTechnology/firetube/releases)) handle.
 
@@ -28,6 +28,7 @@ FireTube connects directly to these services:
 
 - **YouTube**, for search, streams and recommendations. See [Google's privacy policy](https://policies.google.com/privacy).
 - **SponsorBlock** (sponsor.ajay.app), to skip non-music sections. It receives the ID of the video you're playing.
+- **LRCLIB** (lrclib.net), only when you open lyrics. It receives the song's title, artist and length.
 - **GitHub**, to check for app updates. See the [GitHub privacy statement](https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement).
 - **Google Cast**, only when you cast. The Cast device plays audio streamed from your phone over your local network, and the Cast framework communicates with Google.
 - **Google Firebase**, for crash reports and the optional sign-in and sync described above.
