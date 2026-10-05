@@ -1,0 +1,148 @@
+package com.palmerintech.firetube.lyrics
+
+import com.palmerintech.firetube.extractor.Track
+import kotlinx.coroutines.test.runTest
+import okhttp3.HttpUrl
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Protocol
+import okhttp3.Response
+import okhttp3.ResponseBody.Companion.toResponseBody
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
+import org.junit.Test
+import java.io.IOException
+import java.net.UnknownHostException
+
+/** The LRCLIB client against canned responses; no request leaves the machine. */
+class LyricsTest {
+
+    private val requests = mutableListOf<HttpUrl>()
+    private val userAgents = mutableListOf<String?>()
+
+    /** Answers each request with [respond] (status to body); null = 404. */
+    private fun lyrics(respond: (HttpUrl) -> Pair<Int, String>?): Lyrics {
+        val client = OkHttpClient.Builder().addInterceptor { chain ->
+            val req = chain.request()
+            requests += req.url
+            userAgents += req.header("User-Agent")
+            val (code, body) = respond(req.url) ?: (404 to """{"code":404,"name":"TrackNotFound"}""")
+            Response.Builder().request(req).protocol(Protocol.HTTP_1_1).code(code).message("")
+                .body(body.toResponseBody("application/json".toMediaType())).build()
+        }.build()
+        return Lyrics(client, "FireTube/test (https://github.com/PalmerinTechnology/firetube)")
+    }
+
+    private val track = Track("vid1", "Artist - Song (Official Video)", "ArtistVEVO", 200, null)
+
+    private fun record(name: String = "Song", duration: Double = 200.0, synced: String? = SYNCED, plain: String? = "Hello\nWorld", instrumental: Boolean = false) =
+        """{"id":1,"trackName":"$name","artistName":"Artist","albumName":"A","duration":$duration,"instrumental":$instrumental,""" +
+            """"plainLyrics":${plain?.let { "\"${it.replace("\n", "\\n")}\"" } ?: "null"},""" +
+            """"syncedLyrics":${synced?.let { "\"${it.replace("\n", "\\n")}\"" } ?: "null"}}"""
+
+    @Test
+    fun `exact match returns synced lyrics with the cleaned names and a user agent`() = runTest {
+        val l = lyrics { url -> if (url.encodedPath == "/api/get") 200 to record() else null }
+        val result = l.lookup(track)
+        assertEquals(LyricsResult.Synced(listOf(LrcLine(1_000, "Hello"), LrcLine(2_000, "World"))), result)
+        val get = requests.single()
+        assertEquals("lrclib.net", get.host)
+        assertEquals("Song", get.queryParameter("track_name"))
+        assertEquals("Artist", get.queryParameter("artist_name"))
+        assertEquals("200", get.queryParameter("duration"))
+        assertTrue(userAgents.single()!!.startsWith("FireTube/"))
+    }
+
+    @Test
+    fun `search prefers the result whose length matches, then synced`() = runTest {
+        val l = lyrics { url ->
+            when (url.encodedPath) {
+                "/api/search" -> 200 to "[" + listOf(
+                    record(duration = 260.0, synced = "[00:09.00]Long version"),
+                    record(duration = 203.0, synced = null, plain = "Plain close"),
+                    record(duration = 198.0, synced = "[00:05.00]Close and synced"),
+                ).joinToString(",") + "]"
+                else -> null
+            }
+        }
+        assertEquals(LyricsResult.Synced(listOf(LrcLine(5_000, "Close and synced"))), l.lookup(track))
+    }
+
+    @Test
+    fun `a result of a different length only gives plain lyrics`() = runTest {
+        val l = lyrics { url ->
+            if (url.encodedPath == "/api/search") 200 to "[" + record(duration = 240.0, plain = null, synced = "[00:01.00]Words\n[00:02.00]More") + "]" else null
+        }
+        assertEquals(LyricsResult.Plain("Words\nMore"), l.lookup(track))
+        // Everything was tried looking for a better match: get, a search per variant (just one
+        // here, as title and channel agree on the artist), then free text.
+        assertEquals(listOf("/api/get", "/api/search", "/api/search"), requests.map { it.encodedPath })
+        assertEquals("Artist Song", requests.last().queryParameter("q"))
+    }
+
+    @Test
+    fun `results for a different song are ignored`() = runTest {
+        val l = lyrics { url -> if (url.encodedPath == "/api/search") 200 to "[" + record(name = "Something Else") + "]" else null }
+        assertEquals(LyricsResult.NotFound, l.lookup(track))
+    }
+
+    @Test
+    fun `plain-only and instrumental results`() = runTest {
+        val plain = lyrics { url -> if (url.encodedPath == "/api/get") 200 to record(synced = null, plain = "Just words, no timings") else null }
+        assertEquals(LyricsResult.Plain("Just words, no timings"), plain.lookup(track))
+        val instrumental = lyrics { url -> if (url.encodedPath == "/api/get") 200 to record(synced = null, plain = null, instrumental = true) else null }
+        assertEquals(LyricsResult.Instrumental, instrumental.lookup(track))
+    }
+
+    @Test
+    fun `placeholder entries are passed over for real lyrics`() = runTest {
+        val l = lyrics { url ->
+            when (url.encodedPath) {
+                "/api/get" -> 200 to record(synced = "[00:00.00]probe", plain = "probe")
+                "/api/search" -> 200 to "[" + record(duration = 201.0) + "]"
+                else -> null
+            }
+        }
+        assertEquals(LyricsResult.Synced(listOf(LrcLine(1_000, "Hello"), LrcLine(2_000, "World"))), l.lookup(track))
+    }
+
+    @Test
+    fun `results are cached per track, including not found`() = runTest {
+        val l = lyrics { null }
+        assertEquals(LyricsResult.NotFound, l.lookup(track))
+        val made = requests.size
+        assertEquals(LyricsResult.NotFound, l.lookup(track))
+        assertEquals(LyricsResult.NotFound, l.cached(track.id))
+        assertEquals(made, requests.size)
+    }
+
+    @Test
+    fun `network and server failures throw and are not cached`() = runTest {
+        var offline = true
+        val l = lyrics { if (offline) throw UnknownHostException("lrclib.net") else 500 to "oops" }
+        try {
+            l.lookup(track); fail()
+        } catch (_: UnknownHostException) {
+        }
+        offline = false
+        try {
+            l.lookup(track); fail()
+        } catch (e: IOException) {
+            assertTrue(e.message!!.contains("500"))
+        }
+        assertEquals(null, l.cached(track.id))
+    }
+
+    @Test
+    fun `unknown length skips the exact lookup and accepts any length`() = runTest {
+        val l = lyrics { url -> if (url.encodedPath == "/api/search") 200 to "[" + record(duration = 321.0) + "]" else null }
+        val result = l.lookup(track.copy(id = "vid2", durationSeconds = 0))
+        assertTrue(result is LyricsResult.Synced)
+        assertEquals("/api/search", requests.first().encodedPath)
+    }
+
+    private companion object {
+        const val SYNCED = "[00:01.00]Hello\n[00:02.00]World"
+    }
+}

@@ -58,6 +58,7 @@ import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Lyrics
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -312,6 +313,7 @@ fun NowPlayingScreen(
     val menu = LocalTrackMenu.current
     var showQueue by remember { mutableStateOf(false) }
     var showSleep by remember { mutableStateOf(false) }
+    var showLyrics by remember { mutableStateOf(false) }
     var addToPlaylist by remember { mutableStateOf(false) }
     var scrubbing by remember { mutableStateOf<Float?>(null) }
 
@@ -432,6 +434,7 @@ fun NowPlayingScreen(
                                 tint = if (sleep == SleepTimer.State.Off) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary)
                         }
                         IconButton(onClick = { addToPlaylist = true }) { Icon(Icons.AutoMirrored.Filled.PlaylistAdd, "Add to playlist") }
+                        IconButton(onClick = { showLyrics = true }) { Icon(Icons.Default.Lyrics, "Lyrics") }
                         IconButton(onClick = { showQueue = true }) { Icon(Icons.AutoMirrored.Filled.QueueMusic, "Queue") }
                     }
                 }
@@ -477,6 +480,7 @@ fun NowPlayingScreen(
 
     if (showQueue) QueueSheet(container, state) { showQueue = false }
     if (showSleep) SleepSheet(container.sleepTimer, sleep) { showSleep = false }
+    if (showLyrics) LyricsSheet(container, state) { showLyrics = false }
     if (addToPlaylist) AddToPlaylistDialog(container, listOf(track)) { addToPlaylist = false }
 }
 
