@@ -39,6 +39,41 @@ class SpeedGuardTest {
     }
 
     @Test
+    fun aDriftAfterASuccessfulSendIsNotARejection() {
+        // E.g. another controller changing the speed later: the working player isn't marked unsupported.
+        val g = guard()
+        assertEquals(1.5f, g.next(reported = 1f, canSet = true))
+        assertNull(g.next(reported = 1.5f, canSet = true))
+        assertEquals(1.5f, g.next(reported = 1f, canSet = true))
+        assertNull(g.next(reported = 1.5f, canSet = true))
+        assertFalse(g.unsupported.value)
+    }
+
+    @Test
+    fun eachSongGetsAFreshBoundedTry() {
+        // A receiver that drops back to 1x on every song: re-applied per song, never more than twice.
+        val g = guard()
+        repeat(3) {
+            g.reset() // the service resets on each media item transition
+            var sends = 0
+            repeat(5) { if (g.next(reported = 1f, canSet = true) != null) sends++ }
+            assertTrue(sends <= SpeedGuard.MAX_SENDS)
+        }
+    }
+
+    @Test
+    fun resetGivesAFreshStateEvenWithTheSameSetting() {
+        // A new service starts with the container's old guard: it mustn't stay "unsupported".
+        val g = guard()
+        repeat(5) { g.next(reported = 1f, canSet = true) }
+        assertTrue(g.unsupported.value)
+        g.reset()
+        assertFalse(g.unsupported.value)
+        assertEquals(1.5f, g.setting)
+        assertEquals(1.5f, g.next(reported = 1f, canSet = true))
+    }
+
+    @Test
     fun aPlayerWithoutSpeedControlIsUnsupportedStraightAway() {
         val g = guard()
         assertNull(g.next(reported = 1f, canSet = false))

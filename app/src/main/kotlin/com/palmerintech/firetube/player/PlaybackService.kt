@@ -81,6 +81,8 @@ class PlaybackService : MediaLibraryService() {
 
     override fun onCreate() {
         super.onCreate()
+        // The guard lives in the app container: don't inherit a previous service's "unsupported".
+        container.speedGuard.reset()
         // Volume leveling runs inside the audio pipeline, between the decoder and the speaker.
         val renderers = object : DefaultRenderersFactory(this) {
             override fun buildAudioSink(context: Context, enableFloatOutput: Boolean, enableAudioTrackPlaybackParams: Boolean): AudioSink =
@@ -163,6 +165,9 @@ class PlaybackService : MediaLibraryService() {
 
     private val listener = object : Player.Listener {
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            // Some receivers fall back to 1x on each new song: a fresh (bounded) try per song.
+            container.speedGuard.reset()
+            applySpeed()
             retriesForItem = 0
             recorded = false
             val userChoice = reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK ||

@@ -10,8 +10,10 @@ import kotlinx.coroutines.flow.asStateFlow
  * The saved setting is the source of truth (a Cast hand-off copies the other player's speed
  * across), so [PlaybackService] puts it back whenever the player reports something else. But some
  * Cast receivers and speaker groups never accept a speed: each attempt would be a network round
- * trip answered with 1x, forever. So it gives up after [MAX_REJECTIONS] for that player and
- * reports [unsupported]; [reset] (new setting, other device, media loaded) tries again.
+ * trip answered with 1x, forever. So it gives up after [MAX_REJECTIONS] refusals in a row, or
+ * once it has sent [MAX_SENDS] times (a player that takes the speed and then drops it again), and
+ * reports [unsupported]. [reset] — a new setting, another device, media loaded, each new song, a
+ * new service — tries again, so that's at most [MAX_SENDS] sends per song.
  *
  * Shared through the app container so Now Playing can show the saved speed rather than every
  * value the player passes through — or the player's own once this gives up. Main thread only.
@@ -26,14 +28,18 @@ class SpeedGuard {
     var setting: Float = 1f
         private set
 
-    /** Whether [setting] has been sent to this player since the last [reset]. */
-    private var sent = false
+    /** [setting] was sent and the player hasn't reported it yet. */
+    private var awaiting = false
+
+    /** Refusals in a row (cleared once the player takes the speed). */
     private var rejections = 0
+    private var sends = 0
 
     fun reset(setting: Float = this.setting) {
         this.setting = PlaybackSpeed.clamp(setting)
-        sent = false
+        awaiting = false
         rejections = 0
+        sends = 0
         _unsupported.value = false
     }
 
@@ -42,20 +48,25 @@ class SpeedGuard {
      * [canSet] is false when the player doesn't offer speed changes at all.
      */
     fun next(reported: Float, canSet: Boolean): Float? {
-        if (PlaybackSpeed.same(reported, setting) || _unsupported.value) return null
-        if (!canSet) {
+        if (_unsupported.value) return null
+        if (PlaybackSpeed.same(reported, setting)) {
+            // Taken: a later drift (another controller, a receiver resetting) is a fresh start.
+            awaiting = false
+            rejections = 0
+            return null
+        }
+        val refused = awaiting && ++rejections >= MAX_REJECTIONS
+        if (!canSet || refused || sends >= MAX_SENDS) {
             _unsupported.value = true
             return null
         }
-        if (sent && ++rejections >= MAX_REJECTIONS) {
-            _unsupported.value = true
-            return null
-        }
-        sent = true
+        awaiting = true
+        sends++
         return setting
     }
 
     companion object {
         const val MAX_REJECTIONS = 2
+        const val MAX_SENDS = 2
     }
 }
