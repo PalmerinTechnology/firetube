@@ -28,7 +28,7 @@ crash details, no personal data), which you can turn off in Settings.
 - **Android Auto**, including voice search, and **Chromecast**.
 - **Android TV / Fire TV** and tablet layouts, with full D-pad support.
 - **Optional Google sign-in** to sync your library, or backup and restore to a file.
-- In **English, Spanish and Brazilian Portuguese**. Translations are welcome: copy `app/src/main/res/values/strings.xml` into a `values-xx` folder and add the language to `res/xml/locales_config.xml`.
+- In **English, Spanish and Brazilian Portuguese**. Translations are welcome: copy `app/src/main/res/values/strings.xml` into a `values-xx` folder (or `values-xx-rYY` for a region, like `values-pt-rBR`) and add the language to `res/xml/locales_config.xml`.
 
 ## Install
 
