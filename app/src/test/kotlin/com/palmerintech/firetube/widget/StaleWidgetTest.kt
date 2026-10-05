@@ -12,6 +12,10 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.palmerintech.firetube.R
 import com.palmerintech.firetube.extractor.Track
 import com.palmerintech.firetube.player.QueueStore
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -91,6 +95,38 @@ class StaleWidgetTest {
         assertEquals("Song", view.findViewById<TextView>(R.id.widget_title).text.toString())
         assertFalse(view.findViewById<ImageButton>(R.id.widget_next).isEnabled)
         assertTrue(view.findViewById<ImageButton>(R.id.widget_play_pause).isEnabled)
+    }
+
+    @Test
+    fun serviceStartingDuringTheQueueLoadWins() {
+        val host = shadowOf(AppWidgetManager.getInstance(context))
+        val id = host.createWidget(NowPlayingWidget::class.java, R.layout.widget_now_playing)
+        awaitWidget(id, title = "FireTube", playButton = "Play") // nothing saved: onUpdate's redraw changes nothing visible
+        val loaded = CompletableDeferred<WidgetModel>()
+        val redraw = CoroutineScope(Dispatchers.Default).launch { NowPlayingWidget.drawIdle(context) { loaded.await() } }
+
+        // The service starts while the saved queue is still loading, and draws its state (on main, as WidgetUpdater does).
+        val playing = WidgetModel(song, playing = true, canPrevious = true, canNext = true)
+        NowPlayingWidget.live = NowPlayingWidget.Live(playing, art = null)
+        NowPlayingWidget.push(context, playing, art = null)
+        loaded.complete(WidgetModel(other))
+
+        val deadline = System.currentTimeMillis() + 5_000
+        while (!redraw.isCompleted && System.currentTimeMillis() < deadline) {
+            shadowOf(Looper.getMainLooper()).idle()
+            Thread.sleep(10)
+        }
+        assertTrue(redraw.isCompleted)
+        awaitWidget(id, title = "Song", playButton = "Pause")
+    }
+
+    @Test
+    fun idleDrawLandsWithoutAPlayer() {
+        val host = shadowOf(AppWidgetManager.getInstance(context))
+        val id = host.createWidget(NowPlayingWidget::class.java, R.layout.widget_now_playing)
+        val redraw = CoroutineScope(Dispatchers.Default).launch { NowPlayingWidget.drawIdle(context) { WidgetModel(other) } }
+        awaitWidget(id, title = "Other", playButton = "Play")
+        assertTrue(redraw.isCompleted)
     }
 
     /** Redraws without a player load the saved queue in the background; wait for one to land. */

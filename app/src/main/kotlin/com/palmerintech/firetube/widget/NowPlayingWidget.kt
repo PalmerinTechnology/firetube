@@ -18,7 +18,9 @@ import com.palmerintech.firetube.FireTubeApp
 import com.palmerintech.firetube.R
 import com.palmerintech.firetube.player.QueueStore
 import com.palmerintech.firetube.ui.MainActivity
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * The home-screen now-playing widget. [WidgetUpdater] (inside PlaybackService) pushes every state
@@ -55,9 +57,7 @@ class NowPlayingWidget : AppWidgetProvider() {
         val pending: PendingResult? = goAsync() // null outside a real broadcast (e.g. a test host)
         container.appScope.launch {
             try {
-                val model = idleModel(container.queueStore)
-                // The service may have started meanwhile; its state wins.
-                if (live == null) push(context, model, art = null)
+                drawIdle(context) { idleModel(container.queueStore) }
             } finally {
                 pending?.finish()
             }
@@ -75,6 +75,17 @@ class NowPlayingWidget : AppWidgetProvider() {
 
         @Volatile
         var live: Live? = null
+
+        /**
+         * Draws [load]'s no-player model unless the service has started meanwhile. The check and the
+         * draw happen on the main thread, where [WidgetUpdater] sets [live] and draws, so this can't
+         * land after the service's state and leave the widget wrongly paused.
+         */
+        @VisibleForTesting
+        internal suspend fun drawIdle(context: Context, load: suspend () -> WidgetModel) {
+            val model = load()
+            withContext(Dispatchers.Main) { if (live == null) push(context, model, art = null) }
+        }
 
         /** Without a running player: the saved queue's song, paused, or "Tap to start". */
         @VisibleForTesting
