@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- NowPlayingWidget. The player pushes every change, so updatePeriodMillis is 0 (no polling). -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:initialLayout="@layout/widget_now_playing"
+    android:previewImage="@drawable/widget_preview"
+    android:previewLayout="@layout/widget_now_playing"
+    android:description="@string/widget_description"
+    android:minWidth="180dp"
+    android:minHeight="40dp"
+    android:minResizeWidth="140dp"
+    android:minResizeHeight="40dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="1"
+    android:resizeMode="horizontal"
+    android:updatePeriodMillis="0"
+    android:widgetCategory="home_screen" />
