@@ -79,6 +79,7 @@ import com.palmerintech.firetube.ui.home.HomeScreen
 import com.palmerintech.firetube.ui.library.LibraryScreen
 import com.palmerintech.firetube.ui.library.PlaylistScreen
 import com.palmerintech.firetube.ui.library.RemotePlaylistScreen
+import com.palmerintech.firetube.ui.library.StatsScreen
 import com.palmerintech.firetube.ui.library.TrackList
 import com.palmerintech.firetube.ui.library.TrackListScreen
 import com.palmerintech.firetube.ui.player.MiniPlayer
@@ -99,6 +100,7 @@ import kotlin.reflect.KClass
 @Serializable data class PlaylistRoute(val id: String)
 @Serializable data class RemotePlaylistRoute(val url: String)
 @Serializable data class TrackListRoute(val list: String)
+@Serializable data object StatsRoute
 
 private data class Tab(val route: Any, val routeClass: KClass<*>, val label: String, val icon: ImageVector, val selectedIcon: ImageVector)
 
@@ -258,6 +260,7 @@ fun FireTubeRoot(container: AppContainer, pendingLink: String?, onLinkHandled: (
                             onOpenPlaylist = { nav.navigate(PlaylistRoute(it)) },
                             onOpenList = { nav.navigate(TrackListRoute(it.name)) },
                             onOpenRemotePlaylist = { nav.navigate(RemotePlaylistRoute(it)) },
+                            onOpenStats = { nav.navigate(StatsRoute) },
                             content,
                         )
                     }
@@ -279,6 +282,7 @@ fun FireTubeRoot(container: AppContainer, pendingLink: String?, onLinkHandled: (
                     composable<TrackListRoute> { entry ->
                         TrackListScreen(container, TrackList.valueOf(entry.toRoute<TrackListRoute>().list), onBack = { nav.popBackStack() }, content)
                     }
+                    composable<StatsRoute> { StatsScreen(container, onBack = { nav.popBackStack() }, content) }
                 }
             }
 

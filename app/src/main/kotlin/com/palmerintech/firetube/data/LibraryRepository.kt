@@ -2,10 +2,13 @@ package com.palmerintech.firetube.data
 
 import com.palmerintech.firetube.data.db.HistoryEntity
 import com.palmerintech.firetube.data.db.LibraryDao
+import com.palmerintech.firetube.data.db.PlayEntity
+import com.palmerintech.firetube.data.db.PlayTime
 import com.palmerintech.firetube.data.db.PlaylistEntity
 import com.palmerintech.firetube.data.db.PlaylistEntity.Companion.FAVORITES_ID
 import com.palmerintech.firetube.data.db.PlaylistWithCount
 import com.palmerintech.firetube.data.db.TrackEntity
+import com.palmerintech.firetube.data.db.TrackPlays
 import com.palmerintech.firetube.extractor.Track
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -99,7 +102,33 @@ class LibraryRepository(private val dao: LibraryDao) {
         dao.insertHistory(HistoryEntity(trackId = track.id, playedAt = at))
     }
 
-    suspend fun clearHistory() = dao.clearHistory()
+    /** Clears stats too: they're the same listening history, just counted. */
+    suspend fun clearHistory() {
+        dao.clearHistory()
+        dao.clearPlays()
+    }
+
+    // --- Stats (device-only: plays aren't synced or backed up) ---
+
+    private var prunedPlays = false
+
+    /**
+     * Saves (or updates) one listen once it counts as a play. Called again as the same listen
+     * goes on, so it's an upsert keyed by when it started.
+     */
+    suspend fun recordListen(track: Track, startedAt: Long, msListened: Long) {
+        if (track.title.isNotBlank()) dao.upsertTracks(listOf(TrackEntity.of(track)))
+        else if (dao.track(track.id) == null) return
+        dao.savePlay(PlayEntity(track.id, startedAt, msListened))
+        // Keep the table bounded; once per run is plenty.
+        if (!prunedPlays) {
+            prunedPlays = true
+            dao.prunePlays(now() - PLAYS_KEPT_MS)
+        }
+    }
+
+    fun trackPlays(from: Long): Flow<List<TrackPlays>> = dao.observeTrackPlays(from)
+    fun playTimes(from: Long): Flow<List<PlayTime>> = dao.observePlayTimes(from)
 
     val playCount: Flow<Int> = dao.observePlayCount()
 
@@ -130,4 +159,9 @@ class LibraryRepository(private val dao: LibraryDao) {
     }
 
     private fun now() = System.currentTimeMillis()
+
+    private companion object {
+        /** Stats go back two years at most. */
+        const val PLAYS_KEPT_MS = 2 * 366 * 24 * 60 * 60 * 1000L
+    }
 }

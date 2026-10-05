@@ -10,7 +10,7 @@ FireTube is a free, open-source music player with no ads. This policy explains w
 
 ## Data on your device
 
-Your playlists, listening history, downloads and settings are stored on your device. If Android backup is on, Android can include your playlists, history and settings (not downloads) in your Google account's device backup and restore them on a new phone. Uninstalling FireTube deletes the copy on your device.
+Your playlists, listening history (including the play counts and listening time behind Your stats), downloads and settings are stored on your device. If Android backup is on, Android can include your playlists, history and settings (not downloads) in your Google account's device backup and restore them on a new phone. Uninstalling FireTube deletes the copy on your device.
 
 ## Crash reports
 

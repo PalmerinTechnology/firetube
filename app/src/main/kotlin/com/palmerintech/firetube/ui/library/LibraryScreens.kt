@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.DragHandle
@@ -87,6 +88,7 @@ fun LibraryScreen(
     onOpenPlaylist: (String) -> Unit,
     onOpenList: (TrackList) -> Unit,
     onOpenRemotePlaylist: (String) -> Unit,
+    onOpenStats: () -> Unit,
     contentPadding: PaddingValues,
 ) {
     val playlists by container.library.playlists.collectAsState(emptyList())
@@ -106,6 +108,7 @@ fun LibraryScreen(
                     }
                 }
                 item { ListItemRow(Icons.Default.History, "Recently played") { onOpenList(TrackList.HISTORY) } }
+                item { ListItemRow(Icons.Default.BarChart, "Your stats", "Top songs, artists and listening time", onOpenStats) }
                 item { SectionHeader("Playlists") }
                 if (playlists.isEmpty()) {
                     item {

@@ -72,6 +72,9 @@ class PlaybackService : MediaLibraryService() {
     /** Whether the current item's play has been written to history (once per play). */
     private var recorded = false
 
+    /** Listened time per song, for Your stats. */
+    private lateinit var listens: ListenTracker
+
     override fun onCreate() {
         super.onCreate()
         // Volume leveling runs inside the audio pipeline, between the decoder and the speaker.
@@ -109,6 +112,7 @@ class PlaybackService : MediaLibraryService() {
         session = MediaLibrarySession.Builder(this, player, LibraryCallback(container, scope))
             .setSessionActivity(openApp)
             .build()
+        listens = ListenTracker(player, container.library).also(player::addListener)
 
         setMediaNotificationProvider(
             DefaultMediaNotificationProvider.Builder(this).build().apply { setSmallIcon(R.drawable.ic_notification) },
@@ -137,6 +141,7 @@ class PlaybackService : MediaLibraryService() {
         session = null
         player.release() // a CastPlayer releases the ExoPlayer it wraps
         container.castServer.stop()
+        listens.flush()
         scope.cancel()
         super.onDestroy()
     }

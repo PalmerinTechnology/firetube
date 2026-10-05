@@ -1,5 +1,6 @@
 package com.palmerintech.firetube.data.db
 
+import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -66,6 +67,35 @@ data class HistoryEntity(
     val trackId: String,
     val playedAt: Long,
 )
+
+/**
+ * One listen, for Your stats: how long a song actually played, not counting time paused,
+ * buffering or skipped (SponsorBlock jumps). Written only once it counts as a play (see
+ * [com.palmerintech.firetube.player.ListenCounter]). Device-only: never synced or backed up.
+ * Unlike [HistoryEntity], which is written as soon as a song starts.
+ */
+@Entity(
+    tableName = "plays",
+    primaryKeys = ["startedAt", "trackId"],
+    foreignKeys = [ForeignKey(entity = TrackEntity::class, parentColumns = ["id"], childColumns = ["trackId"])],
+    indices = [Index("trackId")],
+)
+data class PlayEntity(
+    val trackId: String,
+    /** Wall-clock time the song first started making sound. */
+    val startedAt: Long,
+    val msListened: Long,
+)
+
+/** A track with its plays in some period, for stats. */
+data class TrackPlays(
+    @Embedded val track: TrackEntity,
+    val plays: Int,
+    val msListened: Long,
+)
+
+/** When a play happened and how long it lasted, for the listening-by-hour chart. */
+data class PlayTime(val startedAt: Long, val msListened: Long)
 
 /** Playlist row for list screens. */
 data class PlaylistWithCount(

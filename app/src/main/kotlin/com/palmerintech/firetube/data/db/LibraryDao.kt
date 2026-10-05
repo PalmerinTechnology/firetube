@@ -2,6 +2,7 @@ package com.palmerintech.firetube.data.db
 
 import androidx.room.Dao
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Upsert
@@ -108,4 +109,39 @@ interface LibraryDao {
 
     @Query("DELETE FROM history")
     suspend fun clearHistory()
+
+    // --- Plays (stats) ---
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertPlayIfAbsent(play: PlayEntity)
+
+    /** Only ever grows: saves of the same listen can land out of order. */
+    @Query("UPDATE plays SET msListened = MAX(msListened, :msListened) WHERE startedAt = :startedAt AND trackId = :trackId")
+    suspend fun extendPlay(trackId: String, startedAt: Long, msListened: Long)
+
+    /** Insert a listen, or update the one already saved for it. */
+    @Transaction
+    suspend fun savePlay(play: PlayEntity) {
+        insertPlayIfAbsent(play)
+        extendPlay(play.trackId, play.startedAt, play.msListened)
+    }
+
+    @Query("DELETE FROM plays WHERE startedAt < :before")
+    suspend fun prunePlays(before: Long)
+
+    @Query("DELETE FROM plays")
+    suspend fun clearPlays()
+
+    @Query(
+        """
+        SELECT t.*, COUNT(*) AS plays, SUM(p.msListened) AS msListened
+        FROM plays p JOIN tracks t ON t.id = p.trackId
+        WHERE p.startedAt >= :from
+        GROUP BY p.trackId
+        """,
+    )
+    fun observeTrackPlays(from: Long): Flow<List<TrackPlays>>
+
+    @Query("SELECT startedAt, msListened FROM plays WHERE startedAt >= :from")
+    fun observePlayTimes(from: Long): Flow<List<PlayTime>>
 }
