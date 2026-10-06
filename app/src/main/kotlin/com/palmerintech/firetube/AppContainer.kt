@@ -16,6 +16,7 @@ import com.palmerintech.firetube.data.sync.CloudSync
 import com.palmerintech.firetube.extractor.NewPipeStreamSource
 import com.palmerintech.firetube.extractor.StreamSource
 import com.palmerintech.firetube.lyrics.Lyrics
+import com.palmerintech.firetube.player.ChapterStore
 import com.palmerintech.firetube.player.Downloads
 import com.palmerintech.firetube.player.MediaStack
 import com.palmerintech.firetube.player.PlayerConnection
@@ -31,6 +32,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.SupervisorJob
 import okhttp3.OkHttpClient
+import java.io.File
 import java.util.concurrent.TimeUnit
 
 /** Hand-rolled dependency graph; one instance per process, owned by [FireTubeApp]. */
@@ -50,7 +52,8 @@ class AppContainer(val app: Application) {
     val library = LibraryRepository(database.library())
 
     // Same synchronous source as the song-cache key, so URL bitrate and cache key always agree.
-    val resolver by lazy { StreamResolver(source) { settings.audioQualityNow() } }
+    val resolver by lazy { StreamResolver(source, chapterStore) { settings.audioQualityNow() } }
+    private val chapterStore by lazy { ChapterStore(File(app.filesDir, "chapters")) }
     val mediaStack by lazy {
         MediaStack(app, httpClient, resolver, settings.cacheSizeMbNow()) { settings.audioQualityNow().name }
     }
@@ -61,7 +64,7 @@ class AppContainer(val app: Application) {
         GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(app) == ConnectionResult.SUCCESS &&
             runCatching { Cast.getSingletonInstance(app).initialize() }.isSuccess
     }
-    val downloads by lazy { Downloads(app, mediaStack) }
+    val downloads by lazy { Downloads(app, mediaStack, resolver, chapterStore) }
     val sponsorBlock by lazy { SponsorBlock(httpClient) }
     val lyrics by lazy { Lyrics(httpClient, "FireTube/${BuildConfig.VERSION_NAME} (https://github.com/PalmerinTek/firetube)") }
     val sleepTimer = SleepTimer(appScope)

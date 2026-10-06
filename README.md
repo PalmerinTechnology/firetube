@@ -5,8 +5,10 @@ Official builds send crash reports (Firebase Crashlytics: device model and
 crash details, no personal data), which you can turn off in Settings.
 
 <p>
-  <img src="docs/screenshots/search.jpg" width="270" alt="Search results">
-  <img src="docs/screenshots/now-playing.jpg" width="270" alt="Now Playing">
+  <img src="docs/screenshots/home.jpg" width="200" alt="Home">
+  <img src="docs/screenshots/now-playing.jpg" width="200" alt="Now Playing, with chapters">
+  <img src="docs/screenshots/lyrics.jpg" width="200" alt="Synced lyrics">
+  <img src="docs/screenshots/stats.jpg" width="200" alt="Your stats">
 </p>
 <img src="docs/screenshots/landscape.jpg" width="560" alt="Now Playing on a wide screen">
 
@@ -21,9 +23,12 @@ crash details, no personal data), which you can turn off in Settings.
 - **Even-out volume** between loud and quiet uploads.
 - **Skip non-music sections** such as intros and talking, using [SponsorBlock](https://sponsor.ajay.app).
 - **Synced lyrics** that follow the song (tap a line to jump there), from [LRCLIB](https://lrclib.net).
+- **Chapters** for full albums, DJ mixes and live sets: see the current chapter and jump between them.
+- **Equalizer** with presets and bass boost, **crossfade** between songs, and **playback speed** from 0.5x to 2x.
 - **Android Auto**, including voice search, and **Chromecast**.
 - **Android TV / Fire TV** and tablet layouts, with full D-pad support.
 - **Optional Google sign-in** to sync your library, or backup and restore to a file.
+- In **English, Spanish and Brazilian Portuguese**. Translations are welcome: copy `app/src/main/res/values/strings.xml` into a `values-xx` folder (or `values-xx-rYY` for a region, like `values-pt-rBR`) and add the language to `res/xml/locales_config.xml`.
 
 ## Install
 

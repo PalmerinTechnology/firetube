@@ -4,13 +4,17 @@ import com.palmerintech.firetube.data.AudioQuality
 import com.palmerintech.firetube.extractor.Chapter
 import com.palmerintech.firetube.extractor.ResolvedStream
 import com.palmerintech.firetube.extractor.StreamSource
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -19,6 +23,8 @@ import java.util.concurrent.ConcurrentHashMap
  */
 class StreamResolver(
     private val source: StreamSource,
+    /** Chapters of downloaded songs, for those played without being resolved. */
+    private val stored: ChapterStore? = null,
     private val quality: suspend () -> AudioQuality,
 ) {
     private val cache = ConcurrentHashMap<String, ResolvedStream>()
@@ -44,19 +50,32 @@ class StreamResolver(
 
     /**
      * [trackId]'s chapters from when it was last resolved; empty until then, or when it has none.
-     * A song played entirely from the cache or downloads isn't resolved, so shows none.
+     * A download that hasn't been resolved since the app started gets those saved with it; a song
+     * played entirely from the cache otherwise isn't resolved, so shows none.
      */
-    fun chapters(trackId: String): Flow<List<Chapter>> =
-        chapters.map { it[trackId].orEmpty() }.distinctUntilChanged()
+    fun chapters(trackId: String): Flow<List<Chapter>> = flow {
+        if (stored != null && trackId !in chapters.value) {
+            val saved = withContext(Dispatchers.IO) { stored.load(trackId) }.orEmpty()
+            // Unless a resolve got there first: those are newer.
+            if (saved.isNotEmpty()) chapters.update { all -> if (trackId in all) all else withChapters(all, trackId, saved) }
+        }
+        emitAll(chapters.map { it[trackId].orEmpty() })
+    }.distinctUntilChanged()
+
+    /** The chapters known for [trackId] right now, without reading the store; null when none. */
+    fun knownChapters(trackId: String): List<Chapter>? = chapters.value[trackId]
 
     private fun keepChapters(trackId: String, list: List<Chapter>) = chapters.update { all ->
         when {
-            // Re-added at the end, so the least recently resolved is the first dropped.
-            list.isNotEmpty() -> (all - trackId + (trackId to list)).let { if (it.size > MAX_CHAPTERED) it - it.keys.first() else it }
+            list.isNotEmpty() -> withChapters(all, trackId, list)
             trackId in all -> all - trackId
             else -> all
         }
     }
+
+    // Re-added at the end, so the least recently resolved is the first dropped.
+    private fun withChapters(all: Map<String, List<Chapter>>, trackId: String, list: List<Chapter>) =
+        (all - trackId + (trackId to list)).let { if (it.size > MAX_CHAPTERED) it - it.keys.first() else it }
 
     fun invalidate(trackId: String) {
         AudioQuality.entries.forEach { cache.remove("$trackId@$it") }

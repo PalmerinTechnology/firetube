@@ -5,6 +5,7 @@ import androidx.annotation.StringRes
 import com.palmerintech.firetube.R
 import com.palmerintech.firetube.data.db.PlayTime
 import com.palmerintech.firetube.data.db.TrackPlays
+import com.palmerintech.firetube.extractor.ArtistCredit
 import com.palmerintech.firetube.extractor.Track
 import java.time.Instant
 import java.time.LocalTime
@@ -83,9 +84,12 @@ data class ListeningStats(
             )
         }
 
-        /** YouTube's auto-generated "Artist - Topic" channels are the same artist as "Artist". */
+        /**
+         * YouTube's auto-generated "Artist - Topic" channels are the same artist as "Artist", and a
+         * collaboration ("Artist and 2 more") counts for its first artist.
+         */
         fun displayArtist(artist: String): String =
-            artist.trim().replace(TOPIC_SUFFIX, "").replace(SPACES, " ").trim()
+            ArtistCredit.parse(artist.trim()).primary.replace(TOPIC_SUFFIX, "").replace(SPACES, " ").trim()
 
         /** Groups spellings of one artist: no "- Topic", any case, any spacing. */
         fun artistKey(artist: String): String = displayArtist(artist).lowercase(Locale.ROOT)

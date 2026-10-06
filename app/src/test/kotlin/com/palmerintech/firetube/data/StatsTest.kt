@@ -87,6 +87,8 @@ class StatsTest {
         assertEquals("Queen", ListeningStats.displayArtist("  Queen -topic "))
         assertEquals("Topic", ListeningStats.displayArtist("Topic"))
         assertEquals(ListeningStats.artistKey("QUEEN"), ListeningStats.artistKey("queen - Topic"))
+        assertEquals("Shakira", ListeningStats.displayArtist("Shakira and 2 more"))
+        assertEquals("Simon and Garfunkel", ListeningStats.displayArtist("Simon and Garfunkel"))
     }
 
     @Test

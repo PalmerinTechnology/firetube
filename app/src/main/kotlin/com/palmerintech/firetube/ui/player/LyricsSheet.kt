@@ -59,6 +59,7 @@ import com.palmerintech.firetube.lyrics.LrcLine
 import com.palmerintech.firetube.lyrics.LyricsResult
 import com.palmerintech.firetube.player.PlayerUiState
 import com.palmerintech.firetube.ui.Load
+import com.palmerintech.firetube.ui.artistLabel
 import com.palmerintech.firetube.ui.message
 import com.palmerintech.firetube.ui.components.focusRing
 import kotlinx.coroutines.CancellationException
@@ -92,7 +93,7 @@ internal fun LyricsSheet(container: AppContainer, state: PlayerUiState, onDismis
             Column(Modifier.padding(horizontal = 16.dp)) {
                 Text(stringResource(R.string.lyrics_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Text(
-                    "${track.title} · ${track.artist}", style = MaterialTheme.typography.bodyMedium,
+                    "${track.title} · ${artistLabel(track)}", style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
             }

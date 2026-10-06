@@ -18,6 +18,7 @@ import com.palmerintech.firetube.FireTubeApp
 import com.palmerintech.firetube.R
 import com.palmerintech.firetube.player.QueueStore
 import com.palmerintech.firetube.ui.MainActivity
+import com.palmerintech.firetube.ui.artistLabel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -134,14 +135,15 @@ class NowPlayingWidget : AppWidgetProvider() {
                 return views
             }
 
+            val artist = artistLabel(context.resources, track.artist)
             views.setTextViewText(R.id.widget_title, track.title)
-            views.setTextViewText(R.id.widget_artist, track.artist)
+            views.setTextViewText(R.id.widget_artist, artist)
             // What screen readers say for the tappable song area, including on the compact size where
             // the title isn't shown.
             views.setContentDescription(
                 android.R.id.background,
                 if (track.artist.isBlank()) context.getString(R.string.widget_song_description_no_artist, track.title)
-                else context.getString(R.string.widget_song_description, track.title, track.artist),
+                else context.getString(R.string.widget_song_description, track.title, artist),
             )
             // Hidden but still laid out on the compact size, so the buttons stay pushed to the end.
             views.setViewVisibility(R.id.widget_text, if (size.showsText) View.VISIBLE else View.INVISIBLE)

@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.palmerintech.firetube.R
 import com.palmerintech.firetube.data.formatListened
+import com.palmerintech.firetube.ui.artistLabel
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -19,6 +20,7 @@ class LocalizedStringsTest {
 
     private fun songs(n: Int) = context.resources.getQuantityString(R.plurals.song_count, n, n)
     private fun plays(n: Int) = context.resources.getQuantityString(R.plurals.play_count, n, n)
+    private fun artist(a: String) = artistLabel(context.resources, a)
 
     @Test
     fun english() {
@@ -32,6 +34,9 @@ class LocalizedStringsTest {
         assertEquals("45 sec", formatListened(context.resources, 45_000))
         assertEquals("12 min", formatListened(context.resources, 12 * 60_000L + 59_000))
         assertEquals("3 h 25 min", formatListened(context.resources, (3 * 60 + 25) * 60_000L))
+        assertEquals("Shakira and 2 more", artist("Shakira and 2 more"))
+        assertEquals("Simon and Garfunkel", artist("Simon and Garfunkel"))
+        assertEquals("Chapter 3", context.getString(R.string.chapter_untitled, 3))
     }
 
     @Test
@@ -45,6 +50,11 @@ class LocalizedStringsTest {
         assertEquals("1 reproducción", plays(1))
         assertEquals("¿Eliminar “Gym”?", context.getString(R.string.playlist_delete_title, "Gym"))
         assertEquals("45 s", formatListened(context.resources, 45_000))
+        assertEquals("Shakira y 2 más", artist("Shakira and 2 more"))
+        assertEquals("Bad Bunny y 1 más", artist("Bad Bunny and 1 more"))
+        // Band names are names, not credits to translate.
+        assertEquals("Simon and Garfunkel", artist("Simon and Garfunkel"))
+        assertEquals("Capítulo 3", context.getString(R.string.chapter_untitled, 3))
     }
 
     @Test
@@ -58,5 +68,7 @@ class LocalizedStringsTest {
         assertEquals("3 reproduções", plays(3))
         assertEquals("Capítulo 2 de 5: Intro", context.getString(R.string.chapter_position_description, 2, 5, "Intro"))
         assertEquals("3 h 25 min", formatListened(context.resources, (3 * 60 + 25) * 60_000L))
+        assertEquals("Shakira e mais 2", artist("Shakira and 2 more"))
+        assertEquals("Capítulo 3", context.getString(R.string.chapter_untitled, 3))
     }
 }

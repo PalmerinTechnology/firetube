@@ -28,6 +28,11 @@
         <item quantity="one">%1$d play</item>
         <item quantity="other">%1$d plays</item>
     </plurals>
+    <!-- A collaboration's artists: %1$s: the first artist, %2$d: how many others ("Shakira and 2 more") -->
+    <plurals name="artist_and_others">
+        <item quantity="one">%1$s and %2$d more</item>
+        <item quantity="other">%1$s and %2$d more</item>
+    </plurals>
     <!-- Listening time: "3 h 25 min", "12 min", "45 sec" -->
     <string name="duration_hours_minutes">%1$d h %2$d min</string>
     <string name="duration_minutes">%1$d min</string>
@@ -184,6 +189,8 @@
     <string name="chapter_position_description">Chapter %1$d of %2$d: %3$s</string>
     <string name="chapter_previous">Previous chapter</string>
     <string name="chapter_next">Next chapter</string>
+    <!-- A chapter YouTube gave no title: %1$d: its number -->
+    <string name="chapter_untitled">Chapter %1$d</string>
 
     <!-- Queue -->
     <string name="queue_title">Up next</string>
