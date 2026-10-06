@@ -5,6 +5,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import timber.log.Timber
 import java.io.File
+import java.io.FileOutputStream
 
 /**
  * Chapters of downloaded songs, one small JSON file per track id in [dir], so a download played
@@ -18,21 +19,25 @@ class ChapterStore(private val dir: File) {
 
     fun load(trackId: String): List<Chapter>? {
         val file = fileOf(trackId) ?: return null
-        if (!file.exists()) return null
+        if (file.length() == 0L) return null
         return runCatching { json.decodeFromString<List<Stored>>(file.readText()).map { Chapter(it.title, it.startMs) } }
             .onFailure { Timber.w(it, "Couldn't read chapters of %s", trackId) }
             .getOrNull()
     }
 
-    fun has(trackId: String) = fileOf(trackId)?.exists() == true
+    // An empty file (left by a power cut before its data reached the disk) counts as none, so it's rewritten.
+    fun has(trackId: String) = (fileOf(trackId)?.length() ?: 0L) > 0L
 
-    /** Written to a temporary file and renamed, so a crash can't leave a half-written one. */
+    /** Written to a temporary file, synced, and renamed, so a crash can't leave a half-written one. */
     fun save(trackId: String, chapters: List<Chapter>) {
         val file = fileOf(trackId) ?: return
         runCatching {
             dir.mkdirs()
             val tmp = File(dir, "${file.name}.tmp")
-            tmp.writeText(json.encodeToString(chapters.map { Stored(it.title, it.startMs) }))
+            FileOutputStream(tmp).use { out ->
+                out.write(json.encodeToString(chapters.map { Stored(it.title, it.startMs) }).toByteArray())
+                out.fd.sync()
+            }
             if (!tmp.renameTo(file)) {
                 file.delete()
                 check(tmp.renameTo(file)) { "rename failed" }

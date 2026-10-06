@@ -71,4 +71,14 @@ class ChapterStoreTest {
         s.keepFor(setOf("a")) { listOf(Chapter("Other", 0), Chapter("List", 1_000)) }
         assertEquals(mix, s.load("a"))
     }
+
+    @Test
+    fun anEmptyFileCountsAsNoneAndIsRewritten() {
+        val id = "abcdefghijk"
+        java.io.File(dir, "$id.json").apply { parentFile?.mkdirs(); writeText("") }
+        assertFalse(store.has(id))
+        assertNull(store.load(id))
+        store.keepFor(setOf(id)) { listOf(Chapter("Intro", 0), Chapter("Song", 60_000)) }
+        assertEquals(2, store.load(id)?.size)
+    }
 }
