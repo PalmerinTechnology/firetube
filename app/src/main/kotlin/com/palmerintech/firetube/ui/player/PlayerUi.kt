@@ -131,6 +131,7 @@ import com.palmerintech.firetube.ui.components.Artwork
 import com.palmerintech.firetube.ui.components.focusRing
 import com.palmerintech.firetube.ui.theme.LocalFireBrushes
 import com.palmerintech.firetube.ui.components.CastButton
+import com.palmerintech.firetube.ui.components.LiveBadge
 import com.palmerintech.firetube.ui.components.LocalTrackMenu
 import com.palmerintech.firetube.ui.components.TrackRow
 import com.palmerintech.firetube.ui.components.formatDuration
@@ -442,27 +443,39 @@ fun NowPlayingScreen(
                         }
                     }
                     Spacer(Modifier.height(12.dp))
-                    val sliderColors = SliderDefaults.colors()
-                    Slider(
-                        value = scrubbing ?: (state.positionMs.toFloat() / duration).coerceIn(0f, 1f),
-                        onValueChange = { scrubbing = it },
-                        onValueChangeFinished = { scrubbing?.let { player.seekTo((it * duration).toLong()) }; scrubbing = null },
-                        colors = sliderColors,
-                        track = { sliderState ->
-                            SliderDefaults.Track(
-                                sliderState,
-                                colors = sliderColors,
-                                modifier = Modifier.chapterTicks(
-                                    chapters, state.durationMs, { sliderState.value },
-                                    sliderColors.activeTickColor, sliderColors.inactiveTickColor,
-                                ),
+                    if (state.isLive) {
+                        // Nothing to scrub through; behind the live edge, the badge takes you back to it.
+                        Box(Modifier.fillMaxWidth().height(64.dp), contentAlignment = Alignment.Center) {
+                            val goLive = stringResource(R.string.player_go_live)
+                            LiveBadge(
+                                Modifier.focusRing(RoundedCornerShape(4.dp))
+                                    .clickable(enabled = state.behindLive, onClickLabel = goLive, role = Role.Button, onClick = player::goLive),
+                                onAir = !state.behindLive,
                             )
-                        },
-                    )
-                    Row {
-                        Text(formatDuration(shown / 1000).ifEmpty { "0:00" }, style = MaterialTheme.typography.labelMedium)
-                        Spacer(Modifier.weight(1f))
-                        Text(formatDuration(state.durationMs / 1000), style = MaterialTheme.typography.labelMedium)
+                        }
+                    } else {
+                        val sliderColors = SliderDefaults.colors()
+                        Slider(
+                            value = scrubbing ?: (state.positionMs.toFloat() / duration).coerceIn(0f, 1f),
+                            onValueChange = { scrubbing = it },
+                            onValueChangeFinished = { scrubbing?.let { player.seekTo((it * duration).toLong()) }; scrubbing = null },
+                            colors = sliderColors,
+                            track = { sliderState ->
+                                SliderDefaults.Track(
+                                    sliderState,
+                                    colors = sliderColors,
+                                    modifier = Modifier.chapterTicks(
+                                        chapters, state.durationMs, { sliderState.value },
+                                        sliderColors.activeTickColor, sliderColors.inactiveTickColor,
+                                    ),
+                                )
+                            },
+                        )
+                        Row {
+                            Text(formatDuration(shown / 1000).ifEmpty { "0:00" }, style = MaterialTheme.typography.labelMedium)
+                            Spacer(Modifier.weight(1f))
+                            Text(formatDuration(state.durationMs / 1000), style = MaterialTheme.typography.labelMedium)
+                        }
                     }
                     Spacer(Modifier.height(12.dp))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -487,7 +500,8 @@ fun NowPlayingScreen(
                                 tint = if (sleep == SleepTimer.State.Off) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary)
                         }
                         IconButton(onClick = { addToPlaylist = true }) { Icon(Icons.AutoMirrored.Filled.PlaylistAdd, stringResource(R.string.action_add_to_playlist)) }
-                        IconButton(onClick = { showLyrics = true }) { Icon(Icons.Default.Lyrics, stringResource(R.string.lyrics_title)) }
+                        // A live stream is no one song to find lyrics for.
+                        if (!state.isLive) IconButton(onClick = { showLyrics = true }) { Icon(Icons.Default.Lyrics, stringResource(R.string.lyrics_title)) }
                         IconButton(onClick = { showQueue = true }) { Icon(Icons.AutoMirrored.Filled.QueueMusic, stringResource(R.string.player_queue)) }
                     }
                 }

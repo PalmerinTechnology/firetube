@@ -2,6 +2,7 @@ package com.palmerintech.firetube.player
 
 import android.content.ComponentName
 import android.content.Context
+import androidx.media3.common.C
 import androidx.media3.common.Player
 import androidx.media3.common.Timeline
 import androidx.media3.common.util.UnstableApi
@@ -19,13 +20,20 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import timber.log.Timber
 
+/** Further behind than this, a live stream offers to jump back to the live broadcast. ExoPlayer itself aims for ~15s. */
+private const val BEHIND_LIVE_MS = 30_000L
+
 /** UI-facing player state. */
 data class PlayerUiState(
     val current: Track? = null,
     val isPlaying: Boolean = false,
     val isBuffering: Boolean = false,
     val positionMs: Long = 0,
+    /** 0 for a live stream, which has no end to count down to. */
     val durationMs: Long = 0,
+    val isLive: Boolean = false,
+    /** Playing a live stream behind its live edge (it was paused, or seeked back). */
+    val behindLive: Boolean = false,
     val queue: List<Track> = emptyList(),
     val currentIndex: Int = -1,
     val shuffle: Boolean = false,
@@ -128,6 +136,7 @@ class PlayerConnection(private val context: Context, private val scope: Coroutin
     /** Always changes track (unlike [previous], which restarts the song when it's past the start). */
     fun previousTrack() = withController { if (it.hasPreviousMediaItem()) it.seekToPreviousMediaItem() else it.seekTo(0) }
     fun seekTo(ms: Long) = withController { it.seekTo(ms) }
+    fun goLive() = withController { it.seekToDefaultPosition() }
     fun skipTo(index: Int) = withController { it.seekToDefaultPosition(index); it.play() }
     fun toggleShuffle() = withController { it.shuffleModeEnabled = !it.shuffleModeEnabled }
     fun cycleRepeat() = withController {
@@ -151,12 +160,16 @@ class PlayerConnection(private val context: Context, private val scope: Coroutin
     private fun publish(p: Player) {
         val queue = if (p.currentTimeline == Timeline.EMPTY) emptyList()
         else (0 until p.mediaItemCount).map { MediaItems.trackOf(p.getMediaItemAt(it)) }
+        val current = p.currentMediaItem?.let(MediaItems::trackOf)
+        val live = p.isCurrentMediaItemLive || current?.isLive == true
         _state.value = PlayerUiState(
-            current = p.currentMediaItem?.let(MediaItems::trackOf),
+            current = current,
             isPlaying = p.isPlaying,
             isBuffering = p.playbackState == Player.STATE_BUFFERING,
             positionMs = p.currentPosition,
-            durationMs = p.duration.takeIf { it > 0 } ?: ((p.currentMediaItem?.mediaMetadata?.durationMs) ?: 0),
+            durationMs = if (live) 0 else p.duration.takeIf { it > 0 } ?: ((p.currentMediaItem?.mediaMetadata?.durationMs) ?: 0),
+            isLive = live,
+            behindLive = live && p.currentLiveOffset.let { it != C.TIME_UNSET && it > BEHIND_LIVE_MS },
             queue = queue,
             currentIndex = p.currentMediaItemIndex,
             shuffle = p.shuffleModeEnabled,

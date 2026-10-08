@@ -63,6 +63,29 @@ class NewPipeStreamSourceLiveTest {
     }
 
     @Test
+    fun liveStreamResolvesToAManifest() = runBlocking<Unit> {
+        // 24/7 radio streams come and go (and get restarted under new ids): find one that's on now.
+        val live = source.search("lofi hip hop radio", SearchFilter.VIDEOS).items
+            .filterIsInstance<SearchResult.TrackResult>().map { it.track }.firstOrNull { it.isLive }
+        assumeTrue("no live stream in the search results", live != null)
+        println("live -> ${live!!.id} ${live.title}")
+        val stream = try {
+            source.resolve(live.id)
+        } catch (e: ExtractionException) {
+            assumeTrue("YouTube bot check from this IP; skipping stream check", e.cause !is SignInConfirmNotBotException)
+            throw e
+        }
+        assertTrue(stream.live)
+        assertEquals(true, stream.track?.isLive)
+        val manifest = OkHttpClient().newCall(Request.Builder().url(stream.url).build()).execute().use { resp ->
+            assertTrue("HTTP ${resp.code} for the manifest", resp.isSuccessful)
+            resp.body.string()
+        }
+        println("live -> ${manifest.lines().take(12)}")
+        assertTrue(manifest.startsWith("#EXTM3U"))
+    }
+
+    @Test
     fun playlistLoads() = runBlocking {
         // YouTube's own "Top 100 Songs Global" chart playlist.
         val (summary, page) = source.playlist(NewPipeStreamSource.TOP_SONGS_GLOBAL)

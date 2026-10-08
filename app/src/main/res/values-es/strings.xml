@@ -160,6 +160,8 @@
     <string name="player_play">Reproducir</string>
     <string name="player_pause">Pausar</string>
     <string name="player_next">Siguiente</string>
+    <string name="player_live">EN VIVO</string>
+    <string name="player_go_live">Ir a la transmisión en vivo</string>
     <string name="player_previous">Anterior</string>
     <string name="player_next_track">Canción siguiente</string>
     <string name="player_previous_track">Canción anterior</string>

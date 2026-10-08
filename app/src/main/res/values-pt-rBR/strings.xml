@@ -160,6 +160,8 @@
     <string name="player_play">Tocar</string>
     <string name="player_pause">Pausar</string>
     <string name="player_next">Próxima</string>
+    <string name="player_live">AO VIVO</string>
+    <string name="player_go_live">Ir para a transmissão ao vivo</string>
     <string name="player_previous">Anterior</string>
     <string name="player_next_track">Próxima música</string>
     <string name="player_previous_track">Música anterior</string>
