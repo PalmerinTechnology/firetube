@@ -61,9 +61,22 @@ class NewPipeStreamSource(
     override suspend fun resolve(trackId: String, preferLowBitrate: Boolean): ResolvedStream = io {
         val info = StreamInfo.getInfo(yt, "https://www.youtube.com/watch?v=$trackId")
         val related = info.relatedItems.filterIsInstance<StreamInfoItem>().mapNotNull { it.toTrack() }.distinctBy { it.id }
-        val track = Track(trackId, info.name, info.uploaderName.orEmpty().removeSuffix(" - Topic"), info.duration, info.thumbnails.best())
-        if (info.streamType.isLive()) {
-            throw ExtractionException("Live streams aren't supported").apply { permanent = true }
+        val live = info.streamType.isLive()
+        val track = Track(trackId, info.name, info.uploaderName.orEmpty().removeSuffix(" - Topic"), if (live) 0 else info.duration, info.thumbnails.best(), live)
+        if (live) {
+            // YouTube only serves live streams as video+audio manifests; the player keeps the audio.
+            val hls = info.hlsUrl?.takeIf { it.isNotEmpty() }
+                ?: throw ExtractionException("No playable live stream for $trackId")
+            return@io ResolvedStream(
+                trackId = trackId,
+                url = hls,
+                mimeType = HLS_MIME_TYPE,
+                bitrate = 0,
+                expiresAtMillis = expiryOf(hls),
+                related = related,
+                track = track,
+                live = true,
+            )
         }
         val audio = pickAudio(info.audioStreams, preferLowBitrate)
             ?: throw ExtractionException("No playable audio stream for $trackId")
@@ -139,15 +152,18 @@ class NewPipeStreamSource(
     }
 
     private fun StreamInfoItem.toTrack(): Track? {
-        if (streamType.isLive()) return null
         val id = videoId(url) ?: return null
-        return Track(id, name, uploaderName.orEmpty().removeSuffix(" - Topic"), duration, thumbnails.best())
+        val live = streamType.isLive()
+        // A live stream's "duration" is meaningless (-1, or how long it's been on).
+        return Track(id, name, uploaderName.orEmpty().removeSuffix(" - Topic"), if (live) 0 else duration, thumbnails.best(), live)
     }
 
     private fun StreamType?.isLive() = this == StreamType.LIVE_STREAM || this == StreamType.AUDIO_LIVE_STREAM
 
     companion object {
         /** YouTube Music's "Top 100 Songs Global" chart. */
+        const val HLS_MIME_TYPE = "application/x-mpegURL"
+
         const val TOP_SONGS_GLOBAL = "https://www.youtube.com/playlist?list=PL4fGSI1pDJn6puJdseH2Rt9sMvt9E2M4i"
 
         private val VIDEO_ID = Regex("(?:v=|youtu\\.be/|/shorts/|/embed/)([A-Za-z0-9_-]{11})")
@@ -168,7 +184,12 @@ class NewPipeStreamSource(
         }
 
         internal fun expiryOf(url: String): Long {
-            val expireSeconds = url.toHttpUrlOrNull()?.queryParameter("expire")?.toLongOrNull()
+            val parsed = url.toHttpUrlOrNull()
+            // Audio URLs carry ?expire=…; HLS manifests carry it as a path segment, /expire/…/.
+            val expireSeconds = (
+                parsed?.queryParameter("expire")
+                    ?: parsed?.pathSegments?.zipWithNext()?.firstOrNull { it.first == "expire" }?.second
+                )?.toLongOrNull()
             // Refresh a bit early; default to 1h if the URL doesn't say.
             return expireSeconds?.let { it * 1000 - 10 * 60_000 } ?: (System.currentTimeMillis() + 60 * 60_000)
         }

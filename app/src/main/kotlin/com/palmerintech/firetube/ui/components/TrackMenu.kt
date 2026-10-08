@@ -123,6 +123,8 @@ fun TrackMenuHost(container: AppContainer, controller: TrackMenuController, onSh
             }
             MenuItem(Icons.AutoMirrored.Filled.PlaylistAdd, stringResource(R.string.action_add_to_playlist)) { addToPlaylist = true }
             when {
+                // A live stream has no end to download up to.
+                track.isLive && download == null -> Unit
                 download == null || download.failed -> MenuItem(Icons.Default.Download, stringResource(R.string.menu_download)) {
                     container.downloads.download(track); dismiss(); onShowMessage(resources.getString(R.string.menu_downloading))
                 }

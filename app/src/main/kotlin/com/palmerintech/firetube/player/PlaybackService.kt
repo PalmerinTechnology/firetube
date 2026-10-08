@@ -16,12 +16,12 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.DefaultAudioSink
-import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
 import com.palmerintech.firetube.FireTubeApp
 import com.palmerintech.firetube.R
+import com.palmerintech.firetube.data.AudioQuality
 import com.palmerintech.firetube.extractor.Track
 import com.palmerintech.firetube.player.cast.CastItemConverter
 import com.palmerintech.firetube.ui.MainActivity
@@ -100,13 +100,17 @@ class PlaybackService : MediaLibraryService() {
                     .build()
         }
         exoPlayer = ExoPlayer.Builder(this, renderers)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(container.mediaStack.playbackFactory))
+            .setMediaSourceFactory(LiveMediaSourceFactory(container.mediaStack.playbackFactory, container.mediaStack.networkFactory))
             .setAudioAttributes(
                 AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build(),
                 /* handleAudioFocus = */ true,
             )
             .setHandleAudioBecomingNoisy(true)
             .setWakeMode(C.WAKE_MODE_NETWORK)
+            .build()
+        // Live streams come with video; FireTube only ever plays their audio.
+        exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters.buildUpon()
+            .setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, true)
             .build()
         player = if (container.castAvailable) {
             CastPlayer.Builder(this)
@@ -138,6 +142,10 @@ class PlaybackService : MediaLibraryService() {
         scope.launch {
             container.settings.settings.collect {
                 leveler.enabled = it.volumeLeveling
+                // A live stream's audio comes in two bitrates; songs only ever have the one resolved.
+                exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters.buildUpon()
+                    .setForceLowestBitrate(it.audioQuality == AudioQuality.DATA_SAVER)
+                    .build()
                 effects.update(it.equalizerPreset, it.bassBoost)
                 crossfade.lengthMs = it.crossfadeSeconds * 1000L
                 applyCrossfade()
@@ -194,7 +202,7 @@ class PlaybackService : MediaLibraryService() {
             mediaItem ?: return
             // Gapless transitions keep isPlaying true, so onIsPlayingChanged won't fire for this item.
             if (player.isPlaying) recordCurrent()
-            startSponsorSkipping(mediaItem.mediaId)
+            if (MediaItems.isLive(mediaItem)) skipJob?.cancel() else startSponsorSkipping(mediaItem.mediaId)
             maybeExtendQueue()
             saveQueue()
         }
@@ -245,6 +253,20 @@ class PlaybackService : MediaLibraryService() {
                 // No point burning through the queue; stay put and let the user press play again.
                 return
             }
+            if (error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW) {
+                // Paused a live stream for longer than YouTube keeps: rejoin it live.
+                player.seekToDefaultPosition()
+                player.prepare()
+                return
+            }
+            error.findCause<StreamKindException>()?.let {
+                // Queued as a song but it's live, or a saved live stream that has since ended: swap it.
+                val track = MediaItems.trackOf(item)
+                val fixed = track.copy(isLive = it.live, durationSeconds = if (it.live) 0 else track.durationSeconds)
+                player.replaceMediaItem(player.currentMediaItemIndex, MediaItems.of(fixed))
+                player.prepare()
+                return
+            }
             val unavailable = error.findCause<StreamUnavailableException>()
             if (unavailable?.permanent != true && retriesForItem < 1) {
                 // Usually an expired stream URL after a long pause: resolve again and carry on.
@@ -277,6 +299,7 @@ class PlaybackService : MediaLibraryService() {
 
         override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
             if (reason != Player.DISCONTINUITY_REASON_SEEK || oldPosition.mediaItemIndex != newPosition.mediaItemIndex) return
+            if (exoPlayer.isCurrentMediaItemLive) return
             crossfade.onSeek(oldPosition.positionMs, newPosition.positionMs, exoPlayer.duration, exoPlayer.playbackParameters.speed)
             applyCrossfade()
         }
@@ -296,7 +319,8 @@ class PlaybackService : MediaLibraryService() {
         }
         fun update(): Boolean {
             val position = exoPlayer.currentPosition
-            val duration = exoPlayer.duration.takeIf { it != C.TIME_UNSET } ?: 0
+            // A live stream's duration is the window YouTube keeps, and it always plays near its end.
+            val duration = exoPlayer.duration.takeIf { it != C.TIME_UNSET && !exoPlayer.isCurrentMediaItemLive } ?: 0
             val speed = exoPlayer.playbackParameters.speed
             val canFadeOut = exoPlayer.hasNextMediaItem() && exoPlayer.repeatMode != Player.REPEAT_MODE_ONE &&
                 !exoPlayer.pauseAtEndOfMediaItems

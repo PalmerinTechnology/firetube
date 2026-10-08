@@ -36,6 +36,15 @@ class NewPipeStreamSourceTest {
     }
 
     @Test
+    fun liveManifestExpiryComesFromThePath() {
+        val expire = 1_900_000_000L
+        val at = NewPipeStreamSource.expiryOf(
+            "https://manifest.googlevideo.com/api/manifest/hls_variant/expire/$expire/ei/abc/source/yt_live_broadcast/file/index.m3u8",
+        )
+        assertEquals(expire * 1000 - 10 * 60_000, at)
+    }
+
+    @Test
     fun expiryDefaultsToAboutAnHour() {
         val before = System.currentTimeMillis()
         val at = NewPipeStreamSource.expiryOf("https://example.com/audio.m4a")

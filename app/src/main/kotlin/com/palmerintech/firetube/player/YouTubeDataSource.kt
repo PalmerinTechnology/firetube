@@ -17,6 +17,10 @@ import java.io.IOException
  * time (on ExoPlayer's loader thread) and streams from it. If YouTube rejects a URL that looked
  * fresh (403/410 — expired or revoked), it re-resolves once and retries.
  *
+ * `firetube://live/<videoId>` works the same way, but opens the live stream's HLS manifest. When
+ * an id turns out to be the other kind (a saved live stream that has since ended, or a song id
+ * that's actually live), it throws [StreamKindException] for the player to swap the item.
+ *
  * Because the URI is stable, cache keys are stable too: cached and downloaded audio keeps working
  * after the underlying googlevideo URL has expired.
  */
@@ -31,6 +35,8 @@ class YouTubeDataSource(
     override fun open(dataSpec: DataSpec): Long {
         val id = MediaItems.trackIdOf(dataSpec.uri) ?: return upstream.open(dataSpec)
         val first = resolveOrThrow(id, forceRefresh = false)
+        val wantsLive = MediaItems.isLiveUri(dataSpec.uri)
+        if (first.live != wantsLive) throw StreamKindException(live = first.live)
         return try {
             upstream.open(dataSpec.withUri(first.url.toUri()))
         } catch (e: HttpDataSource.InvalidResponseCodeException) {
@@ -64,6 +70,9 @@ class YouTubeDataSource(
         override fun createDataSource(): DataSource = YouTubeDataSource(upstream.createDataSource(), resolver)
     }
 }
+
+/** The id is a live stream when [live], else a regular video: it was queued as the wrong kind. */
+class StreamKindException(val live: Boolean) : IOException(if (live) "Is a live stream" else "Is no longer live")
 
 /** A track couldn't be turned into a stream. [permanent]: removed, private, blocked — don't retry. */
 class StreamUnavailableException(val permanent: Boolean, cause: Throwable) : IOException(cause.message, cause)

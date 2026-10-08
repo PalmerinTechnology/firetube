@@ -109,6 +109,10 @@ fun TrackRow(
                     Icon(Icons.Default.DownloadDone, stringResource(R.string.track_downloaded), Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.width(4.dp))
                 }
+                if (track.isLive) {
+                    LiveBadge()
+                    Spacer(Modifier.width(6.dp))
+                }
                 Text(
                     listOf(artistLabel(track), formatDuration(track.durationSeconds)).filter { it.isNotEmpty() }.joinToString(" • "),
                     style = MaterialTheme.typography.bodyMedium,
@@ -207,6 +211,22 @@ val ContentPadding = PaddingValues(bottom = 16.dp)
 fun CastButton(available: Boolean) {
     if (!available) return
     androidx.media3.cast.MediaRouteButton(Modifier, androidx.media3.cast.rememberMediaRouteButtonState())
+}
+
+/** "LIVE", in red; dimmed when [onAir] is false (a live stream playing behind its live edge). */
+@Composable
+fun LiveBadge(modifier: Modifier = Modifier, onAir: Boolean = true) {
+    val red = MaterialTheme.colorScheme.error
+    Text(
+        stringResource(R.string.player_live),
+        modifier = modifier.clip(RoundedCornerShape(4.dp))
+            .background(if (onAir) red else red.copy(alpha = 0.25f))
+            .padding(horizontal = 6.dp, vertical = 1.dp),
+        style = MaterialTheme.typography.labelSmall,
+        fontWeight = FontWeight.Bold,
+        color = if (onAir) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onSurface,
+        maxLines = 1,
+    )
 }
 
 fun formatDuration(seconds: Long): String {
