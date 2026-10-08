@@ -2,7 +2,10 @@ package com.palmerintech.firetube.player
 
 import android.net.Uri
 import androidx.core.net.toUri
+import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
+import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.HttpDataSource
@@ -68,6 +71,22 @@ class YouTubeDataSource(
         private val resolver: StreamResolver,
     ) : DataSource.Factory {
         override fun createDataSource(): DataSource = YouTubeDataSource(upstream.createDataSource(), resolver)
+    }
+}
+
+/**
+ * ExoPlayer's default policy, except that it doesn't retry what retrying can't fix: a stream of
+ * the wrong kind (the service swaps it) or a permanently unavailable one (the service skips it).
+ */
+@UnstableApi
+class StreamErrorPolicy : DefaultLoadErrorHandlingPolicy() {
+    override fun getRetryDelayMsFor(info: LoadErrorHandlingPolicy.LoadErrorInfo): Long {
+        var e: Throwable? = info.exception
+        while (e != null) {
+            if (e is StreamKindException || (e is StreamUnavailableException && e.permanent)) return C.TIME_UNSET
+            e = e.cause
+        }
+        return super.getRetryDelayMsFor(info)
     }
 }
 

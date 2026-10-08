@@ -100,7 +100,10 @@ class PlaybackService : MediaLibraryService() {
                     .build()
         }
         exoPlayer = ExoPlayer.Builder(this, renderers)
-            .setMediaSourceFactory(LiveMediaSourceFactory(container.mediaStack.playbackFactory, container.mediaStack.networkFactory))
+            .setMediaSourceFactory(
+                LiveMediaSourceFactory(container.mediaStack.playbackFactory, container.mediaStack.networkFactory)
+                    .setLoadErrorHandlingPolicy(StreamErrorPolicy()),
+            )
             .setAudioAttributes(
                 AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build(),
                 /* handleAudioFocus = */ true,
@@ -230,6 +233,8 @@ class PlaybackService : MediaLibraryService() {
                 applySpeed()
             }
             if (state == Player.STATE_ENDED) maybeExtendQueue()
+            // Playing again: a later error deserves its own retry (a live stream never changes item).
+            if (state == Player.STATE_READY) retriesForItem = 0
         }
 
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
