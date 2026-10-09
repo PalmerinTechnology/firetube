@@ -9,6 +9,8 @@ data class Track(
     val artist: String,
     val durationSeconds: Long,
     val thumbnailUrl: String?,
+    /** A live stream (no duration, can't be downloaded). Not stored: playback finds out again if lost. */
+    val isLive: Boolean = false,
 ) {
     val url: String get() = "https://www.youtube.com/watch?v=$id"
 
@@ -69,6 +71,8 @@ data class ResolvedStream(
     val track: Track? = null,
     /** Sections of a long video (a DJ mix, a full album), in order; empty when it has none. */
     val chapters: List<Chapter> = emptyList(),
+    /** [url] is an HLS manifest of a live stream, not an audio file. */
+    val live: Boolean = false,
 )
 
 /** A titled section of a track, starting [startMs] into it. [title] may be empty (YouTube gave none). */

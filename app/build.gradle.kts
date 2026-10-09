@@ -34,8 +34,8 @@ android {
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
         // 1.x ended at 95. CI may override with VERSION_CODE.
-        versionCode = providers.environmentVariable("VERSION_CODE").orNull?.toInt() ?: 211
-        versionName = "2.0.11"
+        versionCode = providers.environmentVariable("VERSION_CODE").orNull?.toInt() ?: 212
+        versionName = "2.0.12"
         // Tip jar link (Ko-fi / Buy Me a Coffee / PayPal.me). Empty = every support prompt is hidden.
         buildConfigField("String", "DONATE_URL", "\"https://ko-fi.com/stevepalmerin\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -120,6 +120,7 @@ dependencies {
     implementation(libs.androidx.fragment)
 
     implementation(libs.media3.exoplayer)
+    implementation(libs.media3.exoplayer.hls)
     implementation(libs.media3.session)
     implementation(libs.media3.datasource.okhttp)
     implementation(libs.media3.cast)

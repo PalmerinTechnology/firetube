@@ -170,6 +170,8 @@
     <string name="player_play">Play</string>
     <string name="player_pause">Pause</string>
     <string name="player_next">Next</string>
+    <string name="player_live">LIVE</string>
+    <string name="player_go_live">Go to the live broadcast</string>
     <string name="player_previous">Previous</string>
     <string name="player_next_track">Next track</string>
     <string name="player_previous_track">Previous track</string>
