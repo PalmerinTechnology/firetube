@@ -23,6 +23,7 @@ crash details, no personal data), which you can turn off in Settings.
 - **Even-out volume** between loud and quiet uploads.
 - **Skip non-music sections** such as intros and talking, using [SponsorBlock](https://sponsor.ajay.app).
 - **Synced lyrics** that follow the song (tap a line to jump there), from [LRCLIB](https://lrclib.net).
+- **Live streams**, audio only (24/7 radio channels, concerts), on the phone or a Chromecast.
 - **Chapters** for full albums, DJ mixes and live sets: see the current chapter and jump between them.
 - **Equalizer** with presets and bass boost, **crossfade** between songs, and **playback speed** from 0.5x to 2x.
 - **Android Auto**, including voice search, and **Chromecast**.
