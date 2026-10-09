@@ -10,8 +10,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.core.net.toUri
-import com.palmerintech.firetube.AppContainer
 import com.palmerintech.firetube.R
+import com.palmerintech.firetube.update.AppUpdater
 import com.palmerintech.firetube.update.UpdateInfo
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -22,7 +22,7 @@ import kotlinx.coroutines.launch
  */
 @Composable
 fun UpdateDialog(
-    container: AppContainer,
+    updater: AppUpdater,
     update: UpdateInfo,
     /** The caller's: the install outlives the dialog. */
     scope: CoroutineScope,
@@ -46,7 +46,7 @@ fun UpdateDialog(
                 }
                 scope.launch {
                     onProgress(0f)
-                    runCatching { container.updater.install(update) { p -> onProgress(p) } }
+                    runCatching { updater.install(update) { p -> onProgress(p) } }
                         .onFailure { onShowMessage(resources.getString(R.string.update_failed, it.message)) }
                     onProgress(null)
                 }

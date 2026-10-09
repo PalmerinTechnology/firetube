@@ -270,7 +270,7 @@ fun SettingsScreen(container: AppContainer, onBack: () -> Unit, onShowMessage: (
         }
     }
     update?.let { u ->
-        UpdateDialog(container, u, scope, onDismiss = { update = null }, onProgress = { installProgress = it }, onShowMessage = onShowMessage)
+        UpdateDialog(container.updater, u, scope, onDismiss = { update = null }, onProgress = { installProgress = it }, onShowMessage = onShowMessage)
     }
 }
 
