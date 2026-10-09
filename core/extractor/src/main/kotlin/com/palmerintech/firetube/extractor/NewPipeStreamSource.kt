@@ -123,12 +123,18 @@ class NewPipeStreamSource(
             }
         }.getOrDefault(emptyList())
         if (kiosk.isNotEmpty()) return kiosk.distinctBy { it.id }
+        // Charts change weekly: look one up once a day (Home and Android Auto both ask).
+        val day = today()
+        chartCache?.takeIf { it.first == day }?.let { return it.second }
         // The trending-music kiosk is usually empty. YouTube's charts stand in: the user's country's
         // first, else the global one. They change weekly, so the order rotates daily to keep Home fresh.
         val chart = chartCountry?.let { runCatching { countryChart(it) }.getOrNull() }
             ?: playlist(TOP_SONGS_GLOBAL).second.items
-        return dailyMix(chart.distinctBy { it.id }, today())
+        return dailyMix(chart.distinctBy { it.id }, day).also { chartCache = day to it }
     }
+
+    /** Today's trending list from the charts, and the day it was made. */
+    @Volatile private var chartCache: Pair<Long, List<Track>>? = null
 
     /** The country's chart from YouTube's own chart channel (songs, else music videos); null when it has none. */
     private suspend fun countryChart(country: String): List<Track>? {
