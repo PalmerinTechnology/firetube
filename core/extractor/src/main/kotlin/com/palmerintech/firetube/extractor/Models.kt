@@ -56,7 +56,8 @@ sealed interface SearchResult {
     data class PlaylistResult(val playlist: PlaylistSummary) : SearchResult
 }
 
-enum class SearchFilter { SONGS, VIDEOS, PLAYLISTS }
+/** [ALL] is YouTube's unfiltered search: videos (live streams included) and playlists. */
+enum class SearchFilter { SONGS, ALL, PLAYLISTS }
 
 /** A resolved, directly playable audio stream. URLs expire (YouTube: ~6h), so resolve just in time. */
 data class ResolvedStream(

@@ -78,7 +78,7 @@
     <string name="search_no_results">No results</string>
     <string name="search_no_results_body">Try different words.</string>
     <string name="search_filter_songs">Songs</string>
-    <string name="search_filter_videos">Videos</string>
+    <string name="search_filter_all">All</string>
     <!-- Title shown for a pasted link's song until its details arrive -->
     <string name="search_loading_track">Loading…</string>
 

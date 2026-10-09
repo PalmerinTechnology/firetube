@@ -65,7 +65,7 @@ class NewPipeStreamSourceLiveTest {
     @Test
     fun liveStreamResolvesToAManifest() = runBlocking<Unit> {
         // 24/7 radio streams come and go (and get restarted under new ids): find one that's on now.
-        val live = source.search("lofi hip hop radio", SearchFilter.VIDEOS).items
+        val live = source.search("lofi hip hop radio", SearchFilter.ALL).items
             .filterIsInstance<SearchResult.TrackResult>().map { it.track }.firstOrNull { it.isLive }
         assumeTrue("no live stream in the search results", live != null)
         println("live -> ${live!!.id} ${live.title}")

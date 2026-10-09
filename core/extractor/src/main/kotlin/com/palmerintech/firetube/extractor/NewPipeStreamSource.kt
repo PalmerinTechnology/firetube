@@ -47,13 +47,13 @@ class NewPipeStreamSource(
     private val yt = ServiceList.YouTube
 
     override suspend fun search(query: String, filter: SearchFilter): Page<SearchResult> = io {
-        val handler = yt.searchQHFactory.fromQuery(query, listOf(filter.contentFilter()), "")
+        val handler = yt.searchQHFactory.fromQuery(query, filter.contentFilters(), "")
         val info = SearchInfo.getInfo(yt, handler)
         Page(info.relatedItems.mapNotNull { it.toSearchResult() }, info.nextPage?.let(::PageToken))
     }
 
     override suspend fun searchMore(query: String, filter: SearchFilter, token: PageToken): Page<SearchResult> = io {
-        val handler = yt.searchQHFactory.fromQuery(query, listOf(filter.contentFilter()), "")
+        val handler = yt.searchQHFactory.fromQuery(query, filter.contentFilters(), "")
         val page = SearchInfo.getMoreItems(yt, handler, token.value as NpPage)
         Page(page.items.mapNotNull { it.toSearchResult() }, page.nextPage?.let(::PageToken))
     }
@@ -163,10 +163,10 @@ class NewPipeStreamSource(
         }
     }
 
-    private fun SearchFilter.contentFilter() = when (this) {
-        SearchFilter.SONGS -> YoutubeSearchQueryHandlerFactory.MUSIC_SONGS
-        SearchFilter.VIDEOS -> YoutubeSearchQueryHandlerFactory.VIDEOS
-        SearchFilter.PLAYLISTS -> YoutubeSearchQueryHandlerFactory.PLAYLISTS
+    private fun SearchFilter.contentFilters() = when (this) {
+        SearchFilter.SONGS -> listOf(YoutubeSearchQueryHandlerFactory.MUSIC_SONGS)
+        SearchFilter.ALL -> emptyList() // channels in the results are dropped by toSearchResult
+        SearchFilter.PLAYLISTS -> listOf(YoutubeSearchQueryHandlerFactory.PLAYLISTS)
     }
 
     private fun InfoItem.toSearchResult(): SearchResult? = when (this) {
