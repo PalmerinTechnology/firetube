@@ -204,7 +204,7 @@ private fun SuggestionRow(icon: androidx.compose.ui.graphics.vector.ImageVector,
 private fun SearchFilter.label() = stringResource(
     when (this) {
         SearchFilter.SONGS -> R.string.search_filter_songs
-        SearchFilter.VIDEOS -> R.string.search_filter_videos
+        SearchFilter.ALL -> R.string.search_filter_all
         SearchFilter.PLAYLISTS -> R.string.library_playlists
     },
 )
