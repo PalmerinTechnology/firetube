@@ -64,7 +64,7 @@ class CastItemConverter(private val server: CastProxyServer) : MediaItemConverte
                 artist = metadata?.getString(MediaMetadata.KEY_ARTIST).orEmpty(),
                 durationSeconds = custom?.optLong(KEY_DURATION) ?: 0,
                 thumbnailUrl = custom?.optString(KEY_THUMB)?.takeIf { it.isNotEmpty() },
-                isLive = custom?.optBoolean(KEY_LIVE) ?: (info?.streamType == MediaInfo.STREAM_TYPE_LIVE),
+                isLive = custom?.takeIf { it.has(KEY_LIVE) }?.optBoolean(KEY_LIVE) ?: (info?.streamType == MediaInfo.STREAM_TYPE_LIVE),
             ),
         )
     }

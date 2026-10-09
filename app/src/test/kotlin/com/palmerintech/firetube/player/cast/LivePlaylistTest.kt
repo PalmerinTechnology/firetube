@@ -5,6 +5,10 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class LivePlaylistTest {
+    private companion object {
+        const val BASE = "https://manifest.googlevideo.com/hls_playlist/itag/234/index.m3u8"
+    }
+
     // Trimmed from a real YouTube live master playlist.
     private val master = """
         #EXTM3U
@@ -43,7 +47,7 @@ class LivePlaylistTest {
             #EXTINF:5.0,
             https://rr2.googlevideo.com/videoplayback/sq/877128/file/seg.ts
         """.trimIndent()
-        val (out, segments) = LivePlaylist.rewrite(media) { "x/$it.aac" }
+        val (out, segments) = LivePlaylist.rewrite(media, BASE) { "x/$it.aac" }
         assertEquals(
             media.replace("https://rr2.googlevideo.com/videoplayback/sq/877127/file/seg.ts", "x/877127.aac")
                 .replace("https://rr2.googlevideo.com/videoplayback/sq/877128/file/seg.ts", "x/877128.aac"),
@@ -59,8 +63,14 @@ class LivePlaylistTest {
     }
 
     @Test
+    fun relativeSegmentsResolveAgainstThePlaylist() {
+        val (_, segments) = LivePlaylist.rewrite("#EXTM3U\n#EXTINF:5.0,\nseg/1.ts\n", BASE) { "$it" }
+        assertEquals("https://manifest.googlevideo.com/hls_playlist/itag/234/seg/1.ts", segments[0])
+    }
+
+    @Test
     fun sequenceStartsAtZeroWithoutTheTag() {
-        val (_, segments) = LivePlaylist.rewrite("#EXTM3U\n#EXTINF:5.0,\nhttps://a/1\n") { "$it" }
+        val (_, segments) = LivePlaylist.rewrite("#EXTM3U\n#EXTINF:5.0,\nhttps://a/1\n", BASE) { "$it" }
         assertEquals(setOf(0L), segments.keys)
     }
 }

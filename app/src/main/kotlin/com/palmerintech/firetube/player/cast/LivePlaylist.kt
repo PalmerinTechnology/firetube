@@ -1,5 +1,7 @@
 package com.palmerintech.firetube.player.cast
 
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+
 /**
  * Reshapes a YouTube live stream's HLS for a Chromecast: picks the audio-only rendition out of
  * the master playlist, and points each segment of that rendition's playlist back at the phone.
@@ -23,9 +25,11 @@ internal object LivePlaylist {
 
     /**
      * [media] with every segment URL replaced by [local] of its sequence number. Returns the
-     * rewritten playlist and each segment's original URL by sequence number.
+     * rewritten playlist and each segment's original URL (resolved against [base], the playlist's
+     * own URL) by sequence number.
      */
-    fun rewrite(media: String, local: (Long) -> String): Pair<String, Map<Long, String>> {
+    fun rewrite(media: String, base: String, local: (Long) -> String): Pair<String, Map<Long, String>> {
+        val baseUrl = base.toHttpUrlOrNull()
         var seq = media.lineSequence().firstOrNull { it.startsWith(MEDIA_SEQUENCE) }
             ?.substringAfter(':')?.trim()?.toLongOrNull() ?: 0L
         val segments = HashMap<Long, String>()
@@ -33,7 +37,7 @@ internal object LivePlaylist {
             if (line.isBlank() || line.startsWith("#")) {
                 line
             } else {
-                segments[seq] = line.trim()
+                segments[seq] = baseUrl?.resolve(line.trim())?.toString() ?: line.trim()
                 local(seq++)
             }
         }

@@ -229,7 +229,7 @@ class CastProxyServer(
             null
         } ?: return out.status(502, "Bad Gateway")
         // Relative to the playlist's own URL: …/live/<id>.m3u8 → …/live/<id>/<seq>.aac
-        val (playlist, segments) = LivePlaylist.rewrite(media) { seq -> "$id/$seq.aac" }
+        val (playlist, segments) = LivePlaylist.rewrite(media.first, base = media.second) { seq -> "$id/$seq.aac" }
         liveSegments[id] = segments
         val body = playlist.toByteArray(Charsets.UTF_8)
         val header = "HTTP/1.1 200 OK\r\nContent-Type: application/vnd.apple.mpegurl\r\nContent-Length: ${body.size}\r\n" +
@@ -239,22 +239,33 @@ class CastProxyServer(
         out.flush()
     }
 
-    /** The audio rendition's playlist for [id]; null when YouTube refused a (probably expired) URL. */
-    private fun fetchLiveMedia(id: String, forceRefresh: Boolean): String? {
-        val master = runBlocking { resolver.resolve(id, forceRefresh) }.url
+    /** The audio rendition's playlist for [id] and its URL; null when YouTube refused a (probably expired) URL. */
+    private fun fetchLiveMedia(id: String, forceRefresh: Boolean): Pair<String, String>? {
+        val resolved = runBlocking { resolver.resolve(id, forceRefresh) }
+        // The broadcast ended: the id now plays as an ordinary video, which isn't a playlist.
+        if (!resolved.live) throw IOException("$id is no longer live")
+        val master = resolved.url
         val audio = liveAudio[id]?.takeIf { it.first == master }?.second ?: run {
-            val text = get(master) ?: return null
+            val text = getPlaylist(master) ?: return null
             (LivePlaylist.audioPlaylistUrl(text) ?: throw IOException("No audio rendition for $id"))
                 .also { liveAudio[id] = master to it }
         }
-        return get(audio)
+        val media = getPlaylist(audio) ?: return null
+        return media to audio
     }
 
-    /** [url]'s body; null on 403/410 (expired or revoked), an IOException on other failures. */
-    private fun get(url: String): String? = client.newCall(Request.Builder().url(url).build()).execute().use { resp ->
+    /**
+     * A playlist's text; null when YouTube refused the URL (expired, revoked, or a restarted
+     * broadcast's old manifest), an IOException on other failures or anything too big for one.
+     */
+    private fun getPlaylist(url: String): String? = client.newCall(Request.Builder().url(url).build()).execute().use { resp ->
         when {
-            resp.isSuccessful -> resp.body.string()
-            resp.code == 403 || resp.code == 410 -> null
+            resp.isSuccessful -> {
+                val source = resp.body.source()
+                if (!source.request(MAX_PLAYLIST_BYTES + 1)) source.buffer.readUtf8()
+                else throw IOException("Playlist over $MAX_PLAYLIST_BYTES bytes")
+            }
+            resp.code == 403 || resp.code == 404 || resp.code == 410 -> null
             else -> throw IOException("HTTP ${resp.code}")
         }
     }
@@ -263,7 +274,7 @@ class CastProxyServer(
         val url = liveSegments[id]?.get(seq) ?: return out.status(404, "Not Found")
         val upstream = try {
             client.newCall(Request.Builder().url(url).method(request.method, null).build()).execute()
-        } catch (e: IOException) {
+        } catch (e: Exception) {
             Timber.w(e, "Cast: couldn't fetch segment %d of %s", seq, id)
             return out.status(502, "Bad Gateway")
         }
@@ -300,7 +311,9 @@ class CastProxyServer(
     }
 
     private fun fetch(id: String, request: HttpRequest, forceRefresh: Boolean): Response {
-        val url = runBlocking { resolver.resolve(id, forceRefresh) }.url
+        val resolved = runBlocking { resolver.resolve(id, forceRefresh) }
+        if (resolved.live) throw IOException("$id is a live stream")
+        val url = resolved.url
         val builder = Request.Builder().url(url).method(request.method, null)
         request.range?.let { builder.header("Range", it) }
         return client.newCall(builder.build()).execute()
@@ -335,7 +348,7 @@ class CastProxyServer(
     }
 
     private fun OutputStream.status(code: Int, text: String) {
-        runCatching { write("HTTP/1.1 $code $text\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".toByteArray(Charsets.ISO_8859_1)); flush() }
+        runCatching { write("HTTP/1.1 $code $text\r\nContent-Length: 0\r\nAccess-Control-Allow-Origin: *\r\nConnection: close\r\n\r\n".toByteArray(Charsets.ISO_8859_1)); flush() }
     }
 
     /** The phone's IPv4 address on Wi-Fi or Ethernet (not a VPN or mobile data). */
@@ -355,6 +368,9 @@ class CastProxyServer(
         const val MAX_CONNECTIONS = 4
         const val ADDRESS_RECHECK_MS = 30_000L
         const val MAX_REQUEST_BYTES = 8 * 1024
+
+        /** YouTube's hour-long live playlists run to about 1 MB. */
+        const val MAX_PLAYLIST_BYTES = 8L * 1024 * 1024
         /** `/<token>/track/<id>`, `/<token>/live/<id>.m3u8` or `/<token>/live/<id>/<sequence>.aac`. */
         val PATH = Regex("/([0-9a-f]{32})/(track|live)/([A-Za-z0-9_-]{11})(\\.m3u8|/(\\d{1,15})\\.aac)?(?:\\?.*)?")
         val RANGE = Regex("bytes=\\d*-\\d*")
