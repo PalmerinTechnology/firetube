@@ -42,6 +42,10 @@ import java.util.concurrent.atomic.AtomicInteger
  * and each request (Range requests included) is fetched from googlevideo by the phone and piped
  * through. Audio is ~128 kbps, so the cost is small.
  *
+ * Live streams are HLS: `…/live/<id>.m3u8` serves the audio rendition's playlist with each
+ * segment rewritten to `…/live/<id>/<sequence>.aac`, which the phone fetches in turn, so the
+ * Chromecast never talks to googlevideo itself.
+ *
  * Locked down for a shared network: a random per-run token in every URL, only ids that are in
  * the cast queue, a small connection limit, bounded request parsing, and the server only runs
  * while casting ([stop] when playback returns to the phone).
@@ -67,6 +71,12 @@ class CastProxyServer(
     private val active = AtomicInteger()
     private val allowed: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
+    /** Per live stream: the master playlist URL last resolved, and its audio rendition's playlist URL. */
+    private val liveAudio = ConcurrentHashMap<String, Pair<String, String>>()
+
+    /** Per live stream: googlevideo URLs of the segments in the playlist last served, by sequence number. */
+    private val liveSegments = ConcurrentHashMap<String, Map<Long, String>>()
+
     private var server: ServerSocket? = null
     private var acceptJob: Job? = null
     @Volatile private var token = ""
@@ -90,6 +100,10 @@ class CastProxyServer(
         allowed += trackId
         return "http://${address.hostAddress}:${socket.localPort}/$token/track/$trackId"
     }
+
+    /** Like [urlFor], for a live stream: its audio as an HLS playlist. */
+    fun liveUrlFor(trackId: String): String? =
+        urlFor(trackId)?.replace("/track/$trackId", "/live/$trackId.m3u8")
 
     /**
      * Hold the CPU and Wi-Fi awake only while the Chromecast is actually playing, not for a
@@ -122,6 +136,8 @@ class CastProxyServer(
         server = null
         boundAddress = null
         allowed.clear()
+        liveAudio.clear()
+        liveSegments.clear()
         // Unblock handlers stuck writing to a receiver that vanished without closing the connection.
         clients.toList().forEach { runCatching { it.close() } }
         clients.clear()
@@ -191,12 +207,67 @@ class CastProxyServer(
         val input = socket.getInputStream()
         val out = socket.getOutputStream()
         val request = readRequest(input) ?: return@use out.status(400, "Bad Request")
-        val id = PATH.matchEntire(request.path)?.takeIf { it.groupValues[1] == token }?.groupValues?.get(2)
+        val route = PATH.matchEntire(request.path)?.takeIf { it.groupValues[1] == token }?.groupValues
+        val id = route?.get(3)
+        val (kind, suffix, seq) = Triple(route?.get(2), route?.get(4).orEmpty(), route?.get(5).orEmpty())
         when {
             request.method != "GET" && request.method != "HEAD" -> out.status(405, "Method Not Allowed")
             id == null || id !in allowed -> out.status(404, "Not Found")
-            else -> proxy(id, request, out)
+            kind == "track" && suffix.isEmpty() -> proxy(id, request, out)
+            kind == "live" && suffix == ".m3u8" -> livePlaylist(id, request, out)
+            kind == "live" && seq.isNotEmpty() -> liveSegment(id, seq.toLong(), request, out)
+            else -> out.status(404, "Not Found")
         }
+    }
+
+    /** The live stream's audio playlist, its segments pointed back at this server. */
+    private fun livePlaylist(id: String, request: HttpRequest, out: OutputStream) {
+        val media = try {
+            fetchLiveMedia(id, forceRefresh = false) ?: fetchLiveMedia(id, forceRefresh = true)
+        } catch (e: Exception) {
+            Timber.w(e, "Cast: couldn't load live stream %s", id)
+            null
+        } ?: return out.status(502, "Bad Gateway")
+        // Relative to the playlist's own URL: …/live/<id>.m3u8 → …/live/<id>/<seq>.aac
+        val (playlist, segments) = LivePlaylist.rewrite(media) { seq -> "$id/$seq.aac" }
+        liveSegments[id] = segments
+        val body = playlist.toByteArray(Charsets.UTF_8)
+        val header = "HTTP/1.1 200 OK\r\nContent-Type: application/vnd.apple.mpegurl\r\nContent-Length: ${body.size}\r\n" +
+            "Cache-Control: no-cache\r\nAccess-Control-Allow-Origin: *\r\nConnection: close\r\n\r\n"
+        out.write(header.toByteArray(Charsets.ISO_8859_1))
+        if (request.method == "GET") out.write(body)
+        out.flush()
+    }
+
+    /** The audio rendition's playlist for [id]; null when YouTube refused a (probably expired) URL. */
+    private fun fetchLiveMedia(id: String, forceRefresh: Boolean): String? {
+        val master = runBlocking { resolver.resolve(id, forceRefresh) }.url
+        val audio = liveAudio[id]?.takeIf { it.first == master }?.second ?: run {
+            val text = get(master) ?: return null
+            (LivePlaylist.audioPlaylistUrl(text) ?: throw IOException("No audio rendition for $id"))
+                .also { liveAudio[id] = master to it }
+        }
+        return get(audio)
+    }
+
+    /** [url]'s body; null on 403/410 (expired or revoked), an IOException on other failures. */
+    private fun get(url: String): String? = client.newCall(Request.Builder().url(url).build()).execute().use { resp ->
+        when {
+            resp.isSuccessful -> resp.body.string()
+            resp.code == 403 || resp.code == 410 -> null
+            else -> throw IOException("HTTP ${resp.code}")
+        }
+    }
+
+    private fun liveSegment(id: String, seq: Long, request: HttpRequest, out: OutputStream) {
+        val url = liveSegments[id]?.get(seq) ?: return out.status(404, "Not Found")
+        val upstream = try {
+            client.newCall(Request.Builder().url(url).method(request.method, null).build()).execute()
+        } catch (e: IOException) {
+            Timber.w(e, "Cast: couldn't fetch segment %d of %s", seq, id)
+            return out.status(502, "Bad Gateway")
+        }
+        pipe(upstream, request, out)
     }
 
     private fun proxy(id: String, request: HttpRequest, out: OutputStream) {
@@ -211,6 +282,11 @@ class CastProxyServer(
             Timber.w(e, "Cast: couldn't stream %s", id)
             return out.status(502, "Bad Gateway")
         }
+        pipe(upstream, request, out)
+    }
+
+    /** Sends [upstream]'s status, the headers a receiver needs, and (for GET) its body. */
+    private fun pipe(upstream: Response, request: HttpRequest, out: OutputStream) {
         upstream.use { resp ->
             val header = buildString {
                 append("HTTP/1.1 ${resp.code} ${resp.message.ifEmpty { "OK" }}\r\n")
@@ -279,7 +355,8 @@ class CastProxyServer(
         const val MAX_CONNECTIONS = 4
         const val ADDRESS_RECHECK_MS = 30_000L
         const val MAX_REQUEST_BYTES = 8 * 1024
-        val PATH = Regex("/([0-9a-f]{32})/track/([A-Za-z0-9_-]{11})(?:\\?.*)?")
+        /** `/<token>/track/<id>`, `/<token>/live/<id>.m3u8` or `/<token>/live/<id>/<sequence>.aac`. */
+        val PATH = Regex("/([0-9a-f]{32})/(track|live)/([A-Za-z0-9_-]{11})(\\.m3u8|/(\\d{1,15})\\.aac)?(?:\\?.*)?")
         val RANGE = Regex("bytes=\\d*-\\d*")
         val FORWARDED_HEADERS = listOf("Content-Type", "Content-Length", "Content-Range", "Accept-Ranges")
     }
