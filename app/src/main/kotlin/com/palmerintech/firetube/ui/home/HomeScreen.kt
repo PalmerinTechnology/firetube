@@ -141,7 +141,7 @@ fun HomeScreen(
                         }
                     }
                     if (showUpdate) {
-                        UpdateDialog(container, u, updateScope, onDismiss = { showUpdate = false }, onProgress = { installProgress = it }, onShowMessage = onShowMessage)
+                        UpdateDialog(container.updater, u, updateScope, onDismiss = { showUpdate = false }, onProgress = { installProgress = it }, onShowMessage = onShowMessage)
                     }
                 }
             }
