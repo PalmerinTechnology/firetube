@@ -45,6 +45,16 @@ class NewPipeStreamSourceTest {
     }
 
     @Test
+    fun dailyMixKeepsTheTop10OnTopAndChangesByDay() {
+        val chart = (1..30).map { Track("id$it", "Song $it", "Artist", 200, null) }
+        val monday = NewPipeStreamSource.dailyMix(chart, 20_000)
+        assertEquals(chart.toSet(), monday.toSet())
+        assertEquals(chart.take(10).toSet(), monday.take(10).toSet())
+        assertEquals(monday, NewPipeStreamSource.dailyMix(chart, 20_000))
+        assertTrue(monday != NewPipeStreamSource.dailyMix(chart, 20_001))
+    }
+
+    @Test
     fun expiryDefaultsToAboutAnHour() {
         val before = System.currentTimeMillis()
         val at = NewPipeStreamSource.expiryOf("https://example.com/audio.m4a")

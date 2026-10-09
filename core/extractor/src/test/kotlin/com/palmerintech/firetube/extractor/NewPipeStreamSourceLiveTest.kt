@@ -86,6 +86,13 @@ class NewPipeStreamSourceLiveTest {
     }
 
     @Test
+    fun countryChartLoads() = runBlocking {
+        val tracks = NewPipeStreamSource(chartCountry = "United States").trending()
+        println("US trending -> ${tracks.size}: ${tracks.take(5).map { it.title }}")
+        assertTrue(tracks.size >= 50)
+    }
+
+    @Test
     fun playlistLoads() = runBlocking {
         // YouTube's own "Top 100 Songs Global" chart playlist.
         val (summary, page) = source.playlist(NewPipeStreamSource.TOP_SONGS_GLOBAL)

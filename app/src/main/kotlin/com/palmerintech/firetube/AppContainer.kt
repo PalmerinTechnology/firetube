@@ -45,7 +45,11 @@ class AppContainer(val app: Application) {
         .readTimeout(30, TimeUnit.SECONDS)
         .build()
 
-    val source: StreamSource by lazy { NewPipeStreamSource(httpClient) }
+    val source: StreamSource by lazy {
+        // Home's trending follows the phone's region ("United States"), as YouTube's charts name it.
+        val country = java.util.Locale.getDefault().getDisplayCountry(java.util.Locale.ENGLISH).ifEmpty { null }
+        NewPipeStreamSource(httpClient, chartCountry = country)
+    }
 
     private val database = FireTubeDatabase.create(app)
     val settings = SettingsRepository(app)
