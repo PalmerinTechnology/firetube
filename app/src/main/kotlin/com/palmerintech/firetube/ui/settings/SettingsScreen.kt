@@ -1,7 +1,5 @@
 package com.palmerintech.firetube.ui.settings
 
-import android.content.Intent
-import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -42,7 +40,6 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.core.net.toUri
 import androidx.media3.common.util.UnstableApi
 import com.palmerintech.firetube.AppContainer
 import com.palmerintech.firetube.BuildConfig
@@ -58,6 +55,7 @@ import com.palmerintech.firetube.data.sync.CloudSync
 import com.palmerintech.firetube.player.AudioEffects
 import com.palmerintech.firetube.player.Crossfade
 import com.palmerintech.firetube.update.UpdateInfo
+import com.palmerintech.firetube.ui.components.UpdateDialog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -272,28 +270,7 @@ fun SettingsScreen(container: AppContainer, onBack: () -> Unit, onShowMessage: (
         }
     }
     update?.let { u ->
-        AlertDialog(
-            onDismissRequest = { update = null },
-            title = { Text(stringResource(R.string.update_title, u.versionName)) },
-            text = { Text(u.notes.ifBlank { stringResource(R.string.update_default_notes) }) },
-            confirmButton = {
-                TextButton(onClick = {
-                    update = null
-                    if (!context.packageManager.canRequestPackageInstalls()) {
-                        onShowMessage(resources.getString(R.string.update_allow_install))
-                        context.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, "package:${context.packageName}".toUri()))
-                        return@TextButton
-                    }
-                    scope.launch {
-                        installProgress = 0f
-                        runCatching { container.updater.install(u) { p -> installProgress = p } }
-                            .onFailure { onShowMessage(resources.getString(R.string.update_failed, it.message)) }
-                        installProgress = null
-                    }
-                }) { Text(stringResource(R.string.update_confirm)) }
-            },
-            dismissButton = { TextButton(onClick = { update = null }) { Text(stringResource(R.string.update_later)) } },
-        )
+        UpdateDialog(container, u, scope, onDismiss = { update = null }, onProgress = { installProgress = it }, onShowMessage = onShowMessage)
     }
 }
 
