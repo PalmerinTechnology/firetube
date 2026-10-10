@@ -280,7 +280,11 @@ private fun MiniPlayerCard(
             LinearProgressIndicator(
                 progress = { progress },
                 modifier = Modifier.fillMaxWidth().height(3.dp),
-                color = if (state.isLive && state.behindLive) MaterialTheme.colorScheme.error.copy(alpha = 0.5f) else MaterialTheme.colorScheme.primary,
+                color = when {
+                    state.isLive && state.behindLive -> MaterialTheme.colorScheme.error.copy(alpha = 0.25f)
+                    state.isLive -> MaterialTheme.colorScheme.error
+                    else -> MaterialTheme.colorScheme.primary
+                },
                 trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
                 drawStopIndicator = {},
             )
