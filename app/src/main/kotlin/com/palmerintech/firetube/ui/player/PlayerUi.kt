@@ -270,11 +270,17 @@ private fun MiniPlayerCard(
                 PlayPauseButton(state, onTogglePlay, small = true)
                 IconButton(onClick = onNext) { Icon(Icons.Default.SkipNext, stringResource(R.string.player_next)) }
             }
-            val progress = if (state.durationMs > 0) (state.positionMs.toFloat() / state.durationMs).coerceIn(0f, 1f) else 0f
+            // Live has no duration to show a fraction of; a full bar reads as "on air", dimmed once
+            // behind the live edge (matches the Now Playing live badge's on-air/behind states).
+            val progress = when {
+                state.isLive -> 1f
+                state.durationMs > 0 -> (state.positionMs.toFloat() / state.durationMs).coerceIn(0f, 1f)
+                else -> 0f
+            }
             LinearProgressIndicator(
                 progress = { progress },
                 modifier = Modifier.fillMaxWidth().height(3.dp),
-                color = MaterialTheme.colorScheme.primary,
+                color = if (state.isLive && state.behindLive) MaterialTheme.colorScheme.error.copy(alpha = 0.5f) else MaterialTheme.colorScheme.primary,
                 trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
                 drawStopIndicator = {},
             )
