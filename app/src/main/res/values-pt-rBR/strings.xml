@@ -73,7 +73,7 @@
     <string name="search_no_results">Nenhum resultado</string>
     <string name="search_no_results_body">Tente outras palavras.</string>
     <string name="search_filter_songs">Músicas</string>
-    <string name="search_filter_videos">Vídeos</string>
+    <string name="search_filter_all">Tudo</string>
     <string name="search_loading_track">Carregando…</string>
 
     <!-- Library -->

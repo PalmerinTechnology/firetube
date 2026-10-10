@@ -34,6 +34,10 @@ class NewPipeStreamSource(
     client: OkHttpClient = OkHttpDownloader.defaultClient(),
     localization: Localization = Localization.DEFAULT,
     country: ContentCountry = ContentCountry.DEFAULT,
+    /** The user's country in English ("United States"), for its chart; null for the global one only. */
+    private val chartCountry: String? = null,
+    /** Today, for the daily rotation of the charts (which YouTube only updates weekly). */
+    private val today: () -> Long = { System.currentTimeMillis() / 86_400_000L },
 ) : StreamSource {
 
     init {
@@ -43,13 +47,13 @@ class NewPipeStreamSource(
     private val yt = ServiceList.YouTube
 
     override suspend fun search(query: String, filter: SearchFilter): Page<SearchResult> = io {
-        val handler = yt.searchQHFactory.fromQuery(query, listOf(filter.contentFilter()), "")
+        val handler = yt.searchQHFactory.fromQuery(query, filter.contentFilters(), "")
         val info = SearchInfo.getInfo(yt, handler)
         Page(info.relatedItems.mapNotNull { it.toSearchResult() }, info.nextPage?.let(::PageToken))
     }
 
     override suspend fun searchMore(query: String, filter: SearchFilter, token: PageToken): Page<SearchResult> = io {
-        val handler = yt.searchQHFactory.fromQuery(query, listOf(filter.contentFilter()), "")
+        val handler = yt.searchQHFactory.fromQuery(query, filter.contentFilters(), "")
         val page = SearchInfo.getMoreItems(yt, handler, token.value as NpPage)
         Page(page.items.mapNotNull { it.toSearchResult() }, page.nextPage?.let(::PageToken))
     }
@@ -118,8 +122,30 @@ class NewPipeStreamSource(
                 KioskInfo.getInfo(extractor).relatedItems.mapNotNull { it.toTrack() }
             }
         }.getOrDefault(emptyList())
-        // The trending-music kiosk is often empty; YouTube's global chart playlist is a reliable stand-in.
-        return kiosk.ifEmpty { playlist(TOP_SONGS_GLOBAL).second.items }.distinctBy { it.id }
+        if (kiosk.isNotEmpty()) return kiosk.distinctBy { it.id }
+        // Charts change weekly: look one up once a day (Home and Android Auto both ask).
+        val day = today()
+        chartCache?.takeIf { it.first == day }?.let { return it.second }
+        // The trending-music kiosk is usually empty. YouTube's charts stand in: the user's country's
+        // first, else the global one. They change weekly, so the order rotates daily to keep Home fresh.
+        val chart = chartCountry?.let { runCatching { countryChart(it) }.getOrNull() }
+            ?: playlist(TOP_SONGS_GLOBAL).second.items
+        return dailyMix(chart.distinctBy { it.id }, day).also { chartCache = day to it }
+    }
+
+    /** Today's trending list from the charts, and the day it was made. */
+    @Volatile private var chartCache: Pair<Long, List<Track>>? = null
+
+    /** The country's chart from YouTube's own chart channel (songs, else music videos); null when it has none. */
+    private suspend fun countryChart(country: String): List<Track>? {
+        for (title in listOf("Top 100 Songs $country", "Top 100 Music Videos $country")) {
+            val hit = search(title, SearchFilter.PLAYLISTS).items
+                .filterIsInstance<SearchResult.PlaylistResult>()
+                .firstOrNull { it.playlist.owner == CHARTS_CHANNEL && it.playlist.title.equals(title, ignoreCase = true) }
+                ?: continue
+            playlist(hit.playlist.url).second.items.ifEmpty { null }?.let { return it }
+        }
+        return null
     }
 
     /** Runs blocking NewPipe calls off the main thread and maps its exceptions to ours. */
@@ -137,10 +163,10 @@ class NewPipeStreamSource(
         }
     }
 
-    private fun SearchFilter.contentFilter() = when (this) {
-        SearchFilter.SONGS -> YoutubeSearchQueryHandlerFactory.MUSIC_SONGS
-        SearchFilter.VIDEOS -> YoutubeSearchQueryHandlerFactory.VIDEOS
-        SearchFilter.PLAYLISTS -> YoutubeSearchQueryHandlerFactory.PLAYLISTS
+    private fun SearchFilter.contentFilters() = when (this) {
+        SearchFilter.SONGS -> listOf(YoutubeSearchQueryHandlerFactory.MUSIC_SONGS)
+        SearchFilter.ALL -> emptyList() // channels in the results are dropped by toSearchResult
+        SearchFilter.PLAYLISTS -> listOf(YoutubeSearchQueryHandlerFactory.PLAYLISTS)
     }
 
     private fun InfoItem.toSearchResult(): SearchResult? = when (this) {
@@ -163,6 +189,19 @@ class NewPipeStreamSource(
     companion object {
         /** YouTube Music's "Top 100 Songs Global" chart. */
         const val HLS_MIME_TYPE = "application/x-mpegURL"
+
+        /** The channel that publishes YouTube Music's official charts. */
+        private const val CHARTS_CHANNEL = "YouTube Music Global Charts"
+
+        /**
+         * [chart] reordered for [day]: the top 10 stay on top (shuffled among themselves), the rest
+         * are shuffled below them. Stable within a day, different the next.
+         */
+        internal fun dailyMix(chart: List<Track>, day: Long): List<Track> {
+            val random = java.util.Random(day)
+            val (top, rest) = chart.take(10) to chart.drop(10)
+            return top.shuffled(random) + rest.shuffled(random)
+        }
 
         const val TOP_SONGS_GLOBAL = "https://www.youtube.com/playlist?list=PL4fGSI1pDJn6puJdseH2Rt9sMvt9E2M4i"
 

@@ -33,6 +33,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.ui.graphics.Color
 import com.palmerintech.firetube.ui.theme.LocalFireBrushes
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.material3.LinearProgressIndicator
+import com.palmerintech.firetube.ui.components.UpdateDialog
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -82,6 +88,9 @@ fun HomeScreen(
     val playlists by vm.playlists.collectAsStateWithLifecycle()
     val forYou by vm.forYou.collectAsStateWithLifecycle()
     val update by vm.update.collectAsStateWithLifecycle()
+    var showUpdate by remember { mutableStateOf(false) }
+    var installProgress by remember { mutableStateOf<Float?>(null) }
+    val updateScope = rememberCoroutineScope()
     val showSupport by vm.showSupportCard.collectAsStateWithLifecycle()
     val context = androidx.compose.ui.platform.LocalContext.current
     val resources = androidx.compose.ui.platform.LocalResources.current
@@ -115,7 +124,9 @@ fun HomeScreen(
             update?.let { u ->
                 item {
                     Card(
-                        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).clickable(onClick = onOpenSettings),
+                        // Straight to the update, not to Settings; ignored while one is downloading.
+                        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+                            .clickable(enabled = installProgress == null) { showUpdate = true },
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
                     ) {
                         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -125,6 +136,12 @@ fun HomeScreen(
                                 Text(stringResource(R.string.home_update_tap), style = MaterialTheme.typography.bodySmall)
                             }
                         }
+                        installProgress?.let { p ->
+                            LinearProgressIndicator(progress = { p }, modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 12.dp))
+                        }
+                    }
+                    if (showUpdate) {
+                        UpdateDialog(container.updater, u, updateScope, onDismiss = { showUpdate = false }, onProgress = { installProgress = it }, onShowMessage = onShowMessage)
                     }
                 }
             }
